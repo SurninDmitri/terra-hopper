@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Терра-Хоппер Онлайн</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <nav class="bg-white shadow mb-6">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="text-xl font-bold">Терра-Хоппер Онлайн</div>
+            <div class="flex items-center gap-4">
+                {% if user.is_authenticated %}
+                    <span>{{ user.username }}</span>
+                    <a href="{% url 'logout' %}" class="text-red-600">Выйти</a>
+                {% else %}
+                    <a href="{% url 'login' %}">Войти</a>
+                    <a href="{% url 'register' %}">Регистрация</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+    <main class="max-w-7xl mx-auto px-4">
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>
