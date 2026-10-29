@@ -1,0 +1,87 @@
+<div id="game-panel" class="space-y-4">
+    <div class="bg-white rounded-lg shadow p-4 space-y-4">
+        <h2 class="text-lg font-bold">Состояние</h2>
+        <div>
+            <div class="flex justify-between text-sm mb-1">
+                <span>Сила</span><span>{{ hopper.strength|floatformat:1 }}%</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded h-3">
+                <div class="h-3 rounded {% if hopper.strength < 30 %}bg-amber-500{% else %}bg-green-500{% endif %}" style="width: {{ hopper.strength }}%;"></div>
+            </div>
+        </div>
+        <div>
+            <div class="flex justify-between text-sm mb-1">
+                <span>Энергия реактора</span><span>{{ hopper.reactor_energy|floatformat:1 }}%</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded h-3">
+                <div class="bg-blue-500 h-3 rounded" style="width: {{ hopper.reactor_energy }}%;"></div>
+            </div>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-sm">
+            <div class="px-3 py-2 rounded border {% if hopper.location_state == 'surface' %}bg-sky-50 text-sky-800 border-sky-200{% else %}bg-yellow-50 text-yellow-800 border-yellow-200{% endif %}">
+                Положение: {% if hopper.location_state == 'surface' %}На поверхности{% else %}Под землей{% endif %}
+            </div>
+            <div class="px-3 py-2 rounded border bg-gray-50">
+                Дистанция: {{ hopper.distance|floatformat:1 }} м
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-4 space-y-2">
+        <h2 class="text-lg font-bold mb-1">Управление</h2>
+
+        <button hx-post="{% url 'hopper:action' hopper.id %}"
+                hx-vals='{"action_type": "basic_jump", "source": "game"}'
+                hx-target="#game-panel" hx-swap="outerHTML"
+                hx-disabled-elt="this"
+                {% if not allowed.basic_jump %}disabled{% endif %}
+                class="w-full px-3 py-2 rounded {% if allowed.basic_jump %}bg-blue-600 hover:bg-blue-700{% else %}bg-blue-600 opacity-50 cursor-not-allowed{% endif %} text-white text-sm">
+            Обычный прыжок (+10м)
+        </button>
+
+        <button hx-post="{% url 'hopper:action' hopper.id %}"
+                hx-vals='{"action_type": "long_jump", "source": "game"}'
+                hx-target="#game-panel" hx-swap="outerHTML"
+                hx-disabled-elt="this"
+                {% if not allowed.long_jump %}disabled{% endif %}
+                class="w-full px-3 py-2 rounded {% if allowed.long_jump %}bg-indigo-600 hover:bg-indigo-700{% else %}bg-indigo-600 opacity-50 cursor-not-allowed{% endif %} text-white text-sm">
+            Дальний прыжок (+30м)
+        </button>
+
+        <button hx-post="{% url 'hopper:action' hopper.id %}"
+                hx-vals='{"action_type": "long_jump", "use_reactor": "true", "source": "game"}'
+                hx-target="#game-panel" hx-swap="outerHTML"
+                hx-disabled-elt="this"
+                {% if not allowed.long_reactor %}disabled{% endif %}
+                class="w-full px-3 py-2 rounded {% if allowed.long_reactor %}bg-fuchsia-600 hover:bg-fuchsia-700{% else %}bg-fuchsia-600 opacity-50 cursor-not-allowed{% endif %} text-white text-sm">
+            Форсаж реактора (+45м)
+        </button>
+
+        <button hx-post="{% url 'hopper:action' hopper.id %}"
+                hx-vals='{"action_type": "go_underground", "source": "game"}'
+                hx-target="#game-panel" hx-swap="outerHTML"
+                hx-disabled-elt="this"
+                {% if not allowed.go_underground %}disabled{% endif %}
+                class="w-full px-3 py-2 rounded {% if allowed.go_underground %}bg-amber-600 hover:bg-amber-700{% else %}bg-amber-600 opacity-50 cursor-not-allowed{% endif %} text-white text-sm">
+            Погружение под землю
+        </button>
+
+        <button hx-post="{% url 'hopper:action' hopper.id %}"
+                hx-vals='{"action_type": "return_to_surface", "source": "game"}'
+                hx-target="#game-panel" hx-swap="outerHTML"
+                hx-disabled-elt="this"
+                {% if not allowed.return_to_surface %}disabled{% endif %}
+                class="w-full px-3 py-2 rounded {% if allowed.return_to_surface %}bg-emerald-600 hover:bg-emerald-700{% else %}bg-emerald-600 opacity-50 cursor-not-allowed{% endif %} text-white text-sm">
+            Выйти на поверхность
+        </button>
+
+        <button hx-post="{% url 'hopper:action' hopper.id %}"
+                hx-vals='{"action_type": "drill_forward", "source": "game"}'
+                hx-target="#game-panel" hx-swap="outerHTML"
+                hx-disabled-elt="this"
+                {% if not allowed.drill_forward %}disabled{% endif %}
+                class="w-full px-3 py-2 rounded {% if allowed.drill_forward %}bg-stone-700 hover:bg-stone-800{% else %}bg-stone-700 opacity-50 cursor-not-allowed{% endif %} text-white text-sm">
+            Подземное бурение (+40м)
+        </button>
+    </div>
+</div>

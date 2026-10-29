@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="bg-white rounded-lg shadow p-4 mb-4 flex items-center justify-between gap-4">
+    <a href="{% url 'hopper:dashboard' %}" class="text-blue-600 hover:underline whitespace-nowrap">&larr; Назад в гараж</a>
+    <div class="text-lg font-bold">{{ hopper.name }}</div>
+    <div class="flex gap-6 text-sm">
+        <span>Дистанция: <span id="hud-distance" class="font-semibold">{{ hopper.distance|floatformat:1 }}</span> м</span>
+        <span>Рекорд: <span id="hud-record" class="font-semibold">{{ hopper.best_distance|floatformat:1 }}</span> м</span>
+    </div>
+</div>
+
+<div id="game-toast-wrap" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 pointer-events-none"></div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2">
+        <div id="map" class="relative overflow-hidden rounded-lg shadow border border-gray-300">
+            <div class="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-sky-200 to-sky-100">
+                <span class="absolute top-2 left-3 text-xs font-semibold text-sky-700 uppercase tracking-wide">Поверхность</span>
+            </div>
+            <div class="absolute inset-x-0 top-1/2 bottom-0 bg-[linear-gradient(#a3722f_0px,#7a5220_8px,#6b4a1e_100%)]">
+                <span class="absolute top-3 left-3 text-xs font-semibold text-yellow-100 uppercase tracking-wide">Подземелье</span>
+            </div>
+            <div class="absolute inset-x-0 top-[158px] h-[3px] bg-green-800"></div>
+
+            <div class="relative h-[320px] w-[900px] max-w-full mx-auto">
+                <div class="absolute top-[160px] bottom-0 border-l border-dotted border-yellow-200/60" style="left: 150px;"></div>
+                <div class="absolute top-[160px] bottom-0 border-l border-dotted border-yellow-200/60" style="left: 300px;"></div>
+                <div class="absolute top-[160px] bottom-0 border-l border-dotted border-yellow-200/60" style="left: 450px;"></div>
+                <div class="absolute top-[160px] bottom-0 border-l border-dotted border-yellow-200/60" style="left: 600px;"></div>
+                <div class="absolute top-[160px] bottom-0 border-l border-dotted border-yellow-200/60" style="left: 750px;"></div>
+                <div class="absolute top-[162px] text-[10px] text-yellow-100" style="left: 2px;">0м</div>
+                <div class="absolute top-[162px] text-[10px] text-yellow-100" style="left: 152px;">50м</div>
+                <div class="absolute top-[162px] text-[10px] text-yellow-100" style="left: 302px;">100м</div>
+                <div class="absolute top-[162px] text-[10px] text-yellow-100" style="left: 452px;">150м</div>
+                <div class="absolute top-[162px] text-[10px] text-yellow-100" style="left: 602px;">200м</div>
+                <div class="absolute top-[162px] text-[10px] text-yellow-100" style="left: 752px;">250м</div>
+                <div class="absolute top-[162px] text-[10px] text-yellow-100" style="left: 864px;">300м</div>
+
+                <div id="hopper-block"
+                     class="absolute top-0 left-0 w-[140px] h-[40px] bg-amber-600 border-2 border-amber-800 rounded shadow flex items-center justify-center"
+                     style="transition: transform 0.4s ease-in-out;">
+                    <span class="text-white text-xs font-bold truncate px-1">{{ hopper.name }}</span>
+                </div>
+            </div>
+        </div>
+        <p class="text-xs text-gray-500 mt-1">Трек: окно 300 м, масштаб 3 px/м. Метки: 0 м, 50 м, 100 м, 150 м, 200 м, 250 м, 300 м.</p>
+    </div>
+
+    {% include 'hopper/partials/game_panel.html' %}
+</div>
+
+<script type="application/json" id="hopper-data">{{ initial_state }}</script>
+<script>
+    const MAP_HEIGHT = 320;
+    const GROUND_LINE = 160;
+    const BLOCK_HEIGHT = 40;
+    const TRACK_WINDOW_M = 300;
+    const PX_PER_M = 3;
+    const SURFACE_Y = GROUND_LINE - BLOCK_HEIGHT - 2;
+    const UNDERGROUND_Y = GROUND_LINE + 35;
+
+    function applyState(data) {
+        const hopperElement = document.getElementById("hopper-block");
+        if (hopperElement) {
+            const posX = (data.distance % TRACK_WINDOW_M) * PX_PER_M;
+            const posY = data.location_state === "underground" ? UNDERGROUND_Y : SURFACE_Y;
+            hopperElement.style.transform = `translate(${posX}px, ${posY}px)`;
+        }
+        const distEl = document.getElementById("hud-distance");
+        const recEl = document.getElementById("hud-record");
+        if (distEl) distEl.textContent = Number(data.distance).toFixed(1);
+        if (recEl) recEl.textContent = Number(data.best_distance).toFixed(1);
+    }
+
+    document.body.addEventListener("updateMap", function (evt) {
+        applyState(evt.detail);
+    });
+
+    try {
+        applyState(JSON.parse(document.getElementById("hopper-data").textContent));
+    } catch (e) {}
+</script>
+{% endblock %}

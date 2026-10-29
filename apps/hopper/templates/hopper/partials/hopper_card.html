@@ -1,54 +1,17 @@
 <div id="hopper-card-{{ hopper.id }}" class="bg-white p-4 rounded shadow">
-    <h2 class="text-lg font-semibold mb-2">{{ hopper.name }}</h2>
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-gray-700">
-        <div>Масса: {{ hopper.mass_kg }} кг</div>
-        <div>Сила: {{ hopper.strength }}%</div>
-        <div>Энергия реактора: {{ hopper.reactor_energy }}%</div>
-        <div>Положение: {{ hopper.get_location_state_display }}</div>
-        <div>Дистанция: {{ hopper.distance }} м</div>
-        <div>Рекорд: {{ hopper.best_distance }} м</div>
+    <div class="flex items-center justify-between mb-2">
+        <h2 class="text-lg font-semibold">{{ hopper.name }}</h2>
+        <a href="{% url 'hopper:game' hopper.id %}"
+           class="px-4 py-2 rounded bg-purple-600 text-white text-sm hover:bg-purple-700">
+            Запустить заезд
+        </a>
     </div>
 
-    <div class="flex flex-wrap gap-2 mt-3">
-        {% if hopper.location_state == "surface" %}
-            <button hx-post="{% url 'hopper:action' hopper.id %}"
-                    hx-vals='{"action_type": "basic_jump"}'
-                    hx-target="#hopper-card-{{ hopper.id }}" hx-swap="outerHTML"
-                    class="px-3 py-1 rounded bg-blue-600 text-white text-sm hover:bg-blue-700">
-                Прыжок
-            </button>
-            <button hx-post="{% url 'hopper:action' hopper.id %}"
-                    hx-vals='{"action_type": "long_jump"}'
-                    hx-target="#hopper-card-{{ hopper.id }}" hx-swap="outerHTML"
-                    class="px-3 py-1 rounded bg-indigo-600 text-white text-sm hover:bg-indigo-700">
-                Дальний прыжок
-            </button>
-            <button hx-post="{% url 'hopper:action' hopper.id %}"
-                    hx-vals='{"action_type": "long_jump", "use_reactor": "true"}'
-                    hx-target="#hopper-card-{{ hopper.id }}" hx-swap="outerHTML"
-                    class="px-3 py-1 rounded bg-fuchsia-600 text-white text-sm hover:bg-fuchsia-700">
-                Дальний прыжок (реактор)
-            </button>
-            <button hx-post="{% url 'hopper:action' hopper.id %}"
-                    hx-vals='{"action_type": "go_underground"}'
-                    hx-target="#hopper-card-{{ hopper.id }}" hx-swap="outerHTML"
-                    class="px-3 py-1 rounded bg-amber-600 text-white text-sm hover:bg-amber-700">
-                Под землю
-            </button>
-        {% else %}
-            <button hx-post="{% url 'hopper:action' hopper.id %}"
-                    hx-vals='{"action_type": "drill_forward"}'
-                    hx-target="#hopper-card-{{ hopper.id }}" hx-swap="outerHTML"
-                    class="px-3 py-1 rounded bg-stone-700 text-white text-sm hover:bg-stone-800">
-                Бурить
-            </button>
-            <button hx-post="{% url 'hopper:action' hopper.id %}"
-                    hx-vals='{"action_type": "return_to_surface"}'
-                    hx-target="#hopper-card-{{ hopper.id }}" hx-swap="outerHTML"
-                    class="px-3 py-1 rounded bg-emerald-600 text-white text-sm hover:bg-emerald-700">
-                На поверхность
-            </button>
-        {% endif %}
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-gray-700">
+        <div>Масса: {{ hopper.mass_kg }} кг</div>
+        <div>Положение: {{ hopper.get_location_state_display }}</div>
+        <div>Рекорд: {{ hopper.best_distance|floatformat:1 }} м</div>
+        <div>Дата создания: {{ hopper.created_at|date:"d.m.Y" }}</div>
     </div>
 
     <div id="hopper-error-{{ hopper.id }}"></div>

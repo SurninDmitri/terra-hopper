@@ -1,9 +1,16 @@
-from django.shortcuts import render
+import json
+
+from django.shortcuts import render, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.http import require_POST
 from .models import Hopper
-from .services import create_hopper_for_user, execute_hopper_action
+from .services import (
+    create_hopper_for_user,
+    execute_hopper_action,
+    start_race,
+    compute_action_availability,
+)
 from .domain.exceptions import TerraHopperError
 
 
@@ -18,8 +25,7 @@ def dashboard(request):
 
 
 @login_required
-def create_modal(request):
-    return render(request, 'hopper/_create_modal.html')
+def create_modal(request):    return render(request, 'hopper/_create_modal.html')
 
 
 @login_required
@@ -39,6 +45,58 @@ def create_hopper(request):
     return HttpResponse(status=405)
 
 
+def get_state_payload(hopper: Hopper) -> dict:
+    return {
+        "id": hopper.id,
+        "name": hopper.name,
+        "distance": hopper.distance,
+        "best_distance": hopper.best_distance,
+        "strength": hopper.strength,
+        "reactor_energy": hopper.reactor_energy,
+        "location_state": hopper.location_state,
+    }
+
+
+@login_required
+def hopper_game_view(request, hopper_id: int):
+    # Каждый запуск заезда начинается с чистого листа: рекорд сохраняется.
+    hopper = start_race(hopper_id, request.user)
+    initial = get_state_payload(hopper)
+    return render(request, 'hopper/game.html', {
+        'hopper': hopper,
+        'allowed': compute_action_availability(hopper),
+        'initial_state': json.dumps(initial),
+    })
+
+
+@login_required
+def hopper_state_api_view(request, hopper_id: int):
+    hopper = get_object_or_404(Hopper, id=hopper_id, user=request.user)
+    return JsonResponse(get_state_payload(hopper))
+
+
+def _game_error_response(request, hopper_id: int, message: str):
+    if request.POST.get('source') == 'game':
+        response = render(
+            request,
+            'hopper/partials/toast.html',
+            {'error_message': message},
+            status=400,
+        )
+        response['HX-Retarget'] = '#game-toast-wrap'
+        response['HX-Reswap'] = 'innerHTML'
+        return response
+    response = render(
+        request,
+        'hopper/partials/action_error.html',
+        {'error_message': message},
+        status=400,
+    )
+    response['HX-Retarget'] = f'#hopper-error-{hopper_id}'
+    response['HX-Reswap'] = 'innerHTML'
+    return response
+
+
 @login_required
 @require_POST
 def hopper_action_view(request, hopper_id: int):
@@ -54,22 +112,24 @@ def hopper_action_view(request, hopper_id: int):
         )
     except TerraHopperError as e:
         if request.headers.get("HX-Request"):
-            response = render(
-                request,
-                "hopper/partials/action_error.html",
-                {"error_message": str(e)},
-                status=400
-            )
-            response["HX-Retarget"] = f"#hopper-error-{hopper_id}"
-            response["HX-Reswap"] = "innerHTML"
-            return response
+            return _game_error_response(request, hopper_id, str(e))
         return JsonResponse({"error": str(e)}, status=400)
 
     if request.headers.get("HX-Request"):
-        return render(
-            request,
-            "hopper/partials/hopper_card.html",
-            {"hopper": updated_hopper}
+        template = (
+            "hopper/partials/game_panel.html"
+            if request.POST.get("source") == "game"
+            else "hopper/partials/hopper_card.html"
         )
+        context = {"hopper": updated_hopper}
+        if request.POST.get("source") == "game":
+            context["allowed"] = compute_action_availability(updated_hopper)
+        response = render(
+            request,
+            template,
+            context
+        )
+        response["HX-Trigger"] = json.dumps({"updateMap": get_state_payload(updated_hopper)})
+        return response
 
     return JsonResponse({"status": "ok"})

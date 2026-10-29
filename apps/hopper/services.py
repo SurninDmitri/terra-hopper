@@ -4,6 +4,63 @@ from .models import Hopper
 from .domain.terra_hopper import TerraHopper
 
 
+def start_race(hopper_id: int, user) -> Hopper:
+    """
+    Запускает новый заезд: сбрасывает сессию, сохраняя рекорд (best_distance).
+    """
+    with transaction.atomic():
+        hopper_orm = get_object_or_404(
+            Hopper.objects.select_for_update(),
+            id=hopper_id,
+            user=user
+        )
+        hopper_orm.distance = 0.0
+        hopper_orm.strength = 100.0
+        hopper_orm.reactor_energy = 100.0
+        hopper_orm.location_state = "surface"
+        hopper_orm.save()
+        return hopper_orm
+
+
+def compute_action_availability(hopper: Hopper) -> dict:
+    """
+    Динамическая блокировка кнопок: считается на бэкенде на основе
+    location_state, strength и reactor_energy транспорта.
+    """
+    mass = hopper.mass_kg
+    surface = hopper.location_state == "surface"
+    underground = hopper.location_state == "underground"
+
+    return {
+        "basic_jump": (
+            surface
+            and hopper.strength >= 3.0 + mass / 100.0
+        ),
+        "long_jump": (
+            surface
+            and hopper.strength >= 10.0 + (mass / 100.0) * 2.0
+        ),
+        "long_reactor": (
+            surface
+            and hopper.strength >= 10.0 + (mass / 100.0) * 2.0
+            and hopper.reactor_energy >= 50.0
+        ),
+        "go_underground": (
+            surface
+            and hopper.strength >= 3.0 * (mass / 100.0)
+        ),
+        "return_to_surface": (
+            underground
+            and hopper.strength >= 3.0 * (mass / 100.0)
+        ),
+        "drill_forward": (
+            underground
+            and hopper.strength >= 10.0 + (mass / 100.0) * 3.0
+            and hopper.reactor_energy >= 50.0
+        ),
+    }
+
+
 def create_hopper_for_user(user, name: str, mass_kg: float) -> Hopper:
     clean_name = name.strip() if name else ""
     if not clean_name:
