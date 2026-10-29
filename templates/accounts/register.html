@@ -1,35 +1,31 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="d-flex align-items-center justify-content-center" style="min-height: 80vh;">
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-body">
-                <h3 class="text-center mb-3">Регистрация</h3>
-                <form method="post">
-                    {% csrf_token %}
-                    {% for field in form %}
-                        <div class="mb-3">
-                            <label class="form-label">{{ field.label }}</label>
-                            {{ field }}
-                            {% if field.errors %}
-                                <div class="text-danger small">
-                                    {{ field.errors }}
-                                </div>
-                            {% endif %}
-                        </div>
-                    {% endfor %}
-                    {% if form.non_field_errors %}
-                        <div class="text-danger small mb-2">
-                            {{ form.non_field_errors }}
+<div class="flex items-center justify-center" style="min-height: 80vh;">
+    <div class="w-full max-w-sm bg-white rounded-lg shadow p-6">
+        <h3 class="text-center text-xl font-bold mb-4">Регистрация</h3>
+        <form method="post">
+            {% csrf_token %}
+            {% for field in form %}
+                <div class="mb-3">
+                    <label class="block text-sm font-medium mb-1" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}
+                        <div class="text-red-700 text-sm mt-1">
+                            {{ field.errors }}
                         </div>
                     {% endif %}
-                    <button type="submit" class="btn btn-primary w-100">Зарегистрироваться</button>
-                </form>
-                <div class="text-center mt-2">
-                    <a href="{% url 'login' %}">Вход</a>
                 </div>
-            </div>
+            {% endfor %}
+            {% if form.non_field_errors %}
+                <div class="text-red-700 text-sm mb-2">
+                    {{ form.non_field_errors }}
+                </div>
+            {% endif %}
+            <button type="submit" class="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Зарегистрироваться</button>
+        </form>
+        <div class="text-center mt-3">
+            <a href="{% url 'login' %}" class="text-blue-600 hover:underline">Вход</a>
         </div>
     </div>
 </div>

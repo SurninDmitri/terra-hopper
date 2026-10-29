@@ -2,11 +2,20 @@ from django import forms
 from django.contrib.auth.models import User
 from django.contrib.auth.forms import AuthenticationForm
 
+INPUT_CLASS = 'w-full border rounded px-3 py-2'
+
 
 class RegisterForm(forms.Form):
-    username = forms.CharField(max_length=150)
-    password = forms.CharField(widget=forms.PasswordInput)
-    password_confirm = forms.CharField(widget=forms.PasswordInput)
+    username = forms.CharField(
+        max_length=150,
+        widget=forms.TextInput(attrs={'class': INPUT_CLASS}),
+    )
+    password = forms.CharField(
+        widget=forms.PasswordInput(attrs={'class': INPUT_CLASS}),
+    )
+    password_confirm = forms.CharField(
+        widget=forms.PasswordInput(attrs={'class': INPUT_CLASS}),
+    )
 
     def clean_username(self):
         username = self.cleaned_data.get('username')
@@ -24,5 +33,10 @@ class RegisterForm(forms.Form):
 
 
 class LoginForm(AuthenticationForm):
-    username = forms.CharField(max_length=150, widget=forms.TextInput(attrs={'class': 'form-control'}))
-    password = forms.CharField(widget=forms.PasswordInput(attrs={'class': 'form-control'}))
+    username = forms.CharField(
+        max_length=150,
+        widget=forms.TextInput(attrs={'class': INPUT_CLASS}),
+    )
+    password = forms.CharField(
+        widget=forms.PasswordInput(attrs={'class': INPUT_CLASS}),
+    )
