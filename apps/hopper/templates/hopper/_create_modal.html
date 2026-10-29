@@ -4,7 +4,7 @@
         <div class="relative">
             <img src="{% static 'terra-hopper.png' %}" alt="Terra Hopper" class="w-full h-40 object-cover rounded-t-lg">
         </div>
-        <form hx-post="{% url 'create_hopper' %}" hx-target="#garage-list" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful){ document.getElementById('modal-container').innerHTML=''; }">
+        <form hx-post="{% url 'hopper:create_hopper' %}" hx-target="#garage-list" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful){ document.getElementById('modal-container').innerHTML=''; }">
             {% csrf_token %}
             <div class="p-4 space-y-3">
                 {% if error %}

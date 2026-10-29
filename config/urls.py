@@ -6,6 +6,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', views.index, name='index'),
     path('accounts/', include('apps.accounts.urls')),
-    path('dashboard/', include('apps.hopper.urls')),
     path('hopper/', include('apps.hopper.urls')),
 ]

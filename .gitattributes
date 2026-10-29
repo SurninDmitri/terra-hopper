@@ -1,0 +1,9 @@
+# Текстовые файлы — LF consistently
+* text=auto eol=lf
+
+# Windows batch files — CRLF
+*.bat text eol=crlf
+
+# Бинарники — не трогать
+*.png binary
+*.sqlite3 binary

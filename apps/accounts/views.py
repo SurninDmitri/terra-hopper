@@ -16,13 +16,13 @@ def get_tokens_for_user(user):
 
 def index(request):
     if request.user.is_authenticated:
-        return redirect('dashboard')
+        return redirect('hopper:dashboard')
     return redirect('login')
 
 
 def register(request):
     if request.user.is_authenticated:
-        return redirect('dashboard')
+        return redirect('hopper:dashboard')
     if request.method == 'POST':
         form = RegisterForm(request.POST)
         if form.is_valid():
@@ -31,7 +31,7 @@ def register(request):
             user = User.objects.create_user(username=username, password=password)
             login(request, user)
             tokens = get_tokens_for_user(user)
-            response = redirect('dashboard')
+            response = redirect('hopper:dashboard')
             response.set_cookie('access_token', tokens['access'], httponly=True, samesite='Lax', max_age=15 * 60)
             response.set_cookie('refresh_token', tokens['refresh'], httponly=True, samesite='Lax', max_age=7 * 24 * 60 * 60)
             return response
@@ -42,14 +42,14 @@ def register(request):
 
 def user_login(request):
     if request.user.is_authenticated:
-        return redirect('dashboard')
+        return redirect('hopper:dashboard')
     if request.method == 'POST':
         form = LoginForm(request, data=request.POST)
         if form.is_valid():
             user = form.get_user()
             login(request, user)
             tokens = get_tokens_for_user(user)
-            response = redirect('dashboard')
+            response = redirect('hopper:dashboard')
             response.set_cookie('access_token', tokens['access'], httponly=True, samesite='Lax', max_age=15 * 60)
             response.set_cookie('refresh_token', tokens['refresh'], httponly=True, samesite='Lax', max_age=7 * 24 * 60 * 60)
             return response
