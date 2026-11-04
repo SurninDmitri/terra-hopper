@@ -10,6 +10,7 @@ from .services import (
     execute_hopper_action,
     start_race,
     compute_action_availability,
+    is_game_over,
 )
 from .domain.exceptions import TerraHopperError
 
@@ -62,10 +63,12 @@ def hopper_game_view(request, hopper_id: int):
     # Каждый запуск заезда начинается с чистого листа: рекорд сохраняется.
     hopper = start_race(hopper_id, request.user)
     initial = get_state_payload(hopper)
+    allowed = compute_action_availability(hopper)
     return render(request, 'hopper/game.html', {
         'hopper': hopper,
-        'allowed': compute_action_availability(hopper),
-        'initial_state': json.dumps(initial),
+        'allowed': allowed,
+        'game_over': is_game_over(hopper),
+        'initial_state': initial,
     })
 
 
@@ -124,6 +127,7 @@ def hopper_action_view(request, hopper_id: int):
         context = {"hopper": updated_hopper}
         if request.POST.get("source") == "game":
             context["allowed"] = compute_action_availability(updated_hopper)
+            context["game_over"] = is_game_over(updated_hopper)
         response = render(
             request,
             template,

@@ -61,6 +61,14 @@ def compute_action_availability(hopper: Hopper) -> dict:
     }
 
 
+def is_game_over(hopper: Hopper) -> bool:
+    """
+    Игра окончена, если не выполнено ни одно действие:
+    транспорт не может потратить ни силы, ни энергию ни на что.
+    """
+    return not any(compute_action_availability(hopper).values())
+
+
 def create_hopper_for_user(user, name: str, mass_kg: float) -> Hopper:
     clean_name = name.strip() if name else ""
     if not clean_name:

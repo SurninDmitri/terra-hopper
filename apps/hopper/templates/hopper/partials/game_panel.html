@@ -84,4 +84,29 @@
             Подземное бурение (+40м)
         </button>
     </div>
+
+    {% if game_over %}
+    <div id="game-over-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4 text-center space-y-4">
+            <h2 class="text-xl font-bold text-red-600">Игра окончена</h2>
+            <p class="text-gray-700">
+                Силы транспорта исчерпаны — выполнить больше нечего.
+            </p>
+            <div class="text-left bg-gray-50 rounded border border-gray-200 p-3 text-sm space-y-1">
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Пройденная дистанция:</span>
+                    <span class="font-semibold">{{ hopper.distance|floatformat:1 }} м</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Рекорд пользователя:</span>
+                    <span class="font-semibold">{{ hopper.best_distance|floatformat:1 }} м</span>
+                </div>
+            </div>
+            <a href="{% url 'hopper:dashboard' %}"
+               class="inline-block w-full px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white font-medium">
+                Вернуться в гараж
+            </a>
+        </div>
+    </div>
+    {% endif %}
 </div>
