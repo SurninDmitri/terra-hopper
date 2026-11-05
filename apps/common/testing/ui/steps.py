@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+from django.urls import reverse
 from playwright.sync_api import Page
 
 from apps.common.testing.steps import logged_method
-from apps.common.testing.ui.pages import DashboardPage, GamePage, LoginPage
+from apps.common.testing.ui.pages import (
+    DashboardPage,
+    GamePage,
+    LoginPage,
+    RegisterPage,
+)
 
 
 class StepsUI:
@@ -15,6 +21,7 @@ class StepsUI:
         self.login_page = LoginPage(page=page, base_url=base_url)
         self.dashboard_page = DashboardPage(page=page, base_url=base_url)
         self.game_page = GamePage(page=page, base_url=base_url)
+        self.register_page = RegisterPage(page=page, base_url=base_url)
 
     @logged_method
     def login(self, username: str, password: str) -> None:
@@ -23,6 +30,28 @@ class StepsUI:
         self.login_page.password_input.fill(text=password)
         self.login_page.submit_button.click()
         self.dashboard_page.title.assert_visible()
+
+    @logged_method
+    def open_register(self) -> None:
+        self.register_page.open()
+
+    @logged_method
+    def register(
+        self,
+        username: str,
+        password: str,
+        password_confirm: str,
+    ) -> None:
+        self.open_register()
+        self.register_page.username_input.fill(text=username)
+        self.register_page.password_input.fill(text=password)
+        self.register_page.password_confirm_input.fill(text=password_confirm)
+        self.register_page.submit_button.click()
+
+    @logged_method
+    def logout(self) -> None:
+        self.dashboard_page.logout_link.click()
+        self.assert_login_url()
 
     @logged_method
     def open_dashboard(self) -> None:
@@ -92,6 +121,18 @@ class StepsUI:
     @logged_method
     def assert_on_dashboard(self) -> None:
         self.dashboard_page.title.assert_visible()
+
+    @logged_method
+    def assert_dashboard_url(self) -> None:
+        self.dashboard_page.assert_url_contains(
+            expected=reverse("hopper:dashboard"),
+        )
+
+    @logged_method
+    def assert_login_url(self) -> None:
+        self.login_page.assert_url_contains(
+            expected=reverse("login"),
+        )
 
     @logged_method
     def assert_on_game_screen(self) -> None:

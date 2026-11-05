@@ -2,6 +2,7 @@ from django.http import Http404
 from django.test import Client, TestCase
 from django.urls import reverse
 
+from apps.common.testing.constants import HopperData, HttpStatus, Passwords, Users
 from apps.common.testing.steps import Steps
 from apps.hopper.domain.exceptions import (
     InvalidLocationError,
@@ -13,27 +14,19 @@ from apps.hopper.domain.exceptions import (
 class HopperActionsServiceTest(TestCase):
     def setUp(self):
         self.user = Steps.create_user(
-            username="testdriver",
-            password="password",
+            username=Users.TEST_DRIVER,
+            password=Passwords.DEFAULT,
         )
         self.hopper = Steps.create_hopper(
             user=self.user,
-            name="Крот-1",
-            mass_kg=200.0,
+            name=HopperData.DEFAULT_NAME,
+            mass_kg=HopperData.DEFAULT_MASS_KG,
         )
 
     # region === Позитивные сценарии ===
 
     def test_basic_jump_success(self):
-        """Проверяет обычный прыжок на поверхности.
-
-        Предусловия:
-            Хоппер на поверхности, сила 100, дистанция 0.
-        Шаги:
-            1. Выполнить обычный прыжок.
-        Ожидаемый результат:
-            distance=10.0, strength=95.0, best_distance=10.0.
-        """
+        """BE_P_6 Проверяет обычный прыжок на поверхности."""
         # Arrange
         Steps.step(message="Хоппер готов к обычному прыжку")
 
@@ -52,15 +45,7 @@ class HopperActionsServiceTest(TestCase):
         self.assertEqual(first=updated_hopper.best_distance, second=10.0)
 
     def test_long_jump_with_reactor_success(self):
-        """Проверяет длинный прыжок с форсажем реактора.
-
-        Предусловия:
-            Хоппер на поверхности, сила и энергия по 100.
-        Шаги:
-            1. Выполнить длинный прыжок с use_reactor=True.
-        Ожидаемый результат:
-            distance=45.0, strength=86.0, reactor_energy=50.0.
-        """
+        """BE_P_7 Проверяет длинный прыжок с форсажем реактора."""
         # Arrange
         Steps.step(message="Хоппер готов к прыжку с форсажем")
 
@@ -81,15 +66,7 @@ class HopperActionsServiceTest(TestCase):
         self.assertEqual(first=updated_hopper.best_distance, second=45.0)
 
     def test_go_underground_success(self):
-        """Проверяет переход хоппера под землю.
-
-        Предусловия:
-            Хоппер на поверхности, сила 100.
-        Шаги:
-            1. Выполнить go_underground.
-        Ожидаемый результат:
-            location_state=underground, strength=94.0.
-        """
+        """BE_P_8 Проверяет переход хоппера под землю."""
         # Arrange
         Steps.step(message="Хоппер готов к погружению")
 
@@ -107,15 +84,7 @@ class HopperActionsServiceTest(TestCase):
         self.assertEqual(first=updated_hopper.strength, second=94.0)
 
     def test_return_to_surface_success(self):
-        """Проверяет возвращение хоппера на поверхность.
-
-        Предусловия:
-            Хоппер под землёй, сила 100.
-        Шаги:
-            1. Выполнить return_to_surface.
-        Ожидаемый результат:
-            location_state=surface, strength=94.0.
-        """
+        """BE_P_9 Проверяет возвращение хоппера на поверхность."""
         # Arrange
         Steps.step(message="Переводим хоппера под землю")
         Steps.update_hopper(
@@ -138,15 +107,7 @@ class HopperActionsServiceTest(TestCase):
         self.assertEqual(first=updated_hopper.strength, second=94.0)
 
     def test_drill_forward_success(self):
-        """Проверяет бурение вперёд под землёй.
-
-        Предусловия:
-            Хоппер под землёй, сила 94, энергия 100.
-        Шаги:
-            1. Выполнить drill_forward.
-        Ожидаемый результат:
-            distance=40.0, strength=78.0, reactor_energy=50.0.
-        """
+        """BE_P_10 Проверяет бурение вперёд под землёй."""
         # Arrange
         Steps.step(message="Погружаем хоппера под землю")
         Steps.perform_action(
@@ -171,15 +132,7 @@ class HopperActionsServiceTest(TestCase):
         self.assertEqual(first=updated_hopper.best_distance, second=40.0)
 
     def test_recovery_on_100m_marks(self):
-        """Проверяет восстановление ресурсов при пересечении 100 м.
-
-        Предусловия:
-            Хоппер на дистанции 95 м, сила и энергия по 20.
-        Шаги:
-            1. Выполнить обычный прыжок через отметку 100 м.
-        Ожидаемый результат:
-            distance=105.0, strength=50.0, reactor_energy=55.0.
-        """
+        """BE_P_11 Проверяет восстановление ресурсов при пересечении 100 м."""
         # Arrange
         Steps.step(message="Ставим хоппера перед отметкой 100 м")
         Steps.update_hopper(
@@ -210,15 +163,7 @@ class HopperActionsServiceTest(TestCase):
     # region === Негативные сценарии ===
 
     def test_drill_forward_on_surface_raises_error(self):
-        """Проверяет запрет бурения на поверхности.
-
-        Предусловия:
-            Хоппер на поверхности.
-        Шаги:
-            1. Попытаться выполнить drill_forward.
-        Ожидаемый результат:
-            Выброшено InvalidLocationError, состояние не изменилось.
-        """
+        """BE_N_5 Проверяет запрет бурения на поверхности."""
         # Arrange
         Steps.step(message="Хоппер находится на поверхности")
 
@@ -242,15 +187,7 @@ class HopperActionsServiceTest(TestCase):
         self.assertEqual(first=updated_hopper.location_state, second="surface")
 
     def test_not_enough_energy_for_reactor_jump(self):
-        """Проверяет запрет форсажа при недостатке энергии.
-
-        Предусловия:
-            Энергия реактора равна 30.
-        Шаги:
-            1. Попытаться выполнить long_jump с форсажем.
-        Ожидаемый результат:
-            Выброшено NotEnoughEnergyError, состояние не изменилось.
-        """
+        """BE_N_6 Проверяет запрет форсажа при недостатке энергии."""
         # Arrange
         Steps.step(message="Снижаем энергию реактора до 30")
         Steps.update_hopper(
@@ -279,15 +216,7 @@ class HopperActionsServiceTest(TestCase):
         self.assertEqual(first=updated_hopper.reactor_energy, second=30.0)
 
     def test_basic_jump_underground_raises(self):
-        """Проверяет запрет обычного прыжка под землёй.
-
-        Предусловия:
-            Хоппер находится под землёй.
-        Шаги:
-            1. Попытаться выполнить basic_jump.
-        Ожидаемый результат:
-            Выброшено InvalidLocationError, состояние не изменилось.
-        """
+        """BE_N_7 Проверяет запрет обычного прыжка под землёй."""
         # Arrange
         Steps.step(message="Переводим хоппера под землю")
         Steps.update_hopper(
@@ -311,15 +240,7 @@ class HopperActionsServiceTest(TestCase):
         self.assertEqual(first=updated_hopper.location_state, second="underground")
 
     def test_not_enough_strength_for_basic_jump(self):
-        """Проверяет запрет прыжка при недостатке силы.
-
-        Предусловия:
-            Сила хоппера равна 1.
-        Шаги:
-            1. Попытаться выполнить basic_jump.
-        Ожидаемый результат:
-            Выброшено NotEnoughStrengthError, состояние не изменилось.
-        """
+        """BE_N_8 Проверяет запрет прыжка при недостатке силы."""
         # Arrange
         Steps.step(message="Снижаем силу до 1")
         Steps.update_hopper(
@@ -343,15 +264,7 @@ class HopperActionsServiceTest(TestCase):
         self.assertEqual(first=updated_hopper.strength, second=1.0)
 
     def test_go_underground_twice_raises(self):
-        """Проверяет запрет повторного погружения под землю.
-
-        Предусловия:
-            Хоппер уже находится под землёй.
-        Шаги:
-            1. Попытаться повторно выполнить go_underground.
-        Ожидаемый результат:
-            Выброшено InvalidLocationError, состояние не изменилось.
-        """
+        """BE_N_9 Проверяет запрет повторного погружения под землю."""
         # Arrange
         Steps.step(message="Погружаем хоппера под землю")
         first_result = Steps.perform_action(
@@ -376,15 +289,7 @@ class HopperActionsServiceTest(TestCase):
         self.assertEqual(first=updated_hopper.strength, second=first_result.strength)
 
     def test_unknown_action_raises(self):
-        """Проверяет ошибку при неизвестном типе действия.
-
-        Предусловия:
-            Хоппер существует.
-        Шаги:
-            1. Попытаться выполнить действие teleport.
-        Ожидаемый результат:
-            Выброшено ValueError, состояние не изменилось.
-        """
+        """BE_N_10 Проверяет ошибку при неизвестном типе действия."""
         # Arrange
         Steps.step(message="Готовим неизвестное действие")
 
@@ -408,20 +313,12 @@ class HopperActionsServiceTest(TestCase):
         self.assertEqual(first=updated_hopper.strength, second=100.0)
 
     def test_action_on_other_users_hopper_raises_http404(self):
-        """Проверяет запрет действия с чужим хоппером.
-
-        Предусловия:
-            Хоппер принадлежит пользователю testdriver.
-        Шаги:
-            1. Попытаться выполнить действие от имени другого пользователя.
-        Ожидаемый результат:
-            Выброшено Http404, состояние хоппера не изменилось.
-        """
+        """BE_N_11 Проверяет запрет действия с чужим хоппером."""
         # Arrange
         Steps.step(message="Создаём второго пользователя")
         other_user = Steps.create_user(
             username="other",
-            password="password",
+            password=Passwords.DEFAULT,
         )
 
         # Act
@@ -446,32 +343,24 @@ class HopperActionViewTest(TestCase):
     def setUp(self):
         self.client = Client()
         self.user = Steps.create_user(
-            username="testdriver",
-            password="password",
+            username=Users.TEST_DRIVER,
+            password=Passwords.DEFAULT,
         )
         Steps.login(
             client=self.client,
-            username="testdriver",
-            password="password",
+            username=Users.TEST_DRIVER,
+            password=Passwords.DEFAULT,
         )
         self.hopper = Steps.create_hopper(
             user=self.user,
-            name="Крот-1",
-            mass_kg=200.0,
+            name=HopperData.DEFAULT_NAME,
+            mass_kg=HopperData.DEFAULT_MASS_KG,
         )
 
     # region === Позитивные сценарии ===
 
     def test_action_view_success_htmx(self):
-        """Проверяет успешный HTMX-ответ на действие с карточкой хоппера.
-
-        Предусловия:
-            Пользователь авторизован, хоппер на поверхности.
-        Шаги:
-            1. Выполнить basic_jump с заголовком HX-Request.
-        Ожидаемый результат:
-            Статус 200, карточка обновлена, дистанция и сила изменены.
-        """
+        """BE_P_12 Проверяет успешный HTMX-ответ на действие с карточкой хоппера."""
         # Arrange
         Steps.step(message="Готовим HTMX-запрос на обычный прыжок")
 
@@ -486,7 +375,7 @@ class HopperActionViewTest(TestCase):
 
         # Assert
         Steps.step(message="Проверяем карточку и состояние хоппера")
-        self.assertEqual(first=response.status_code, second=200)
+        self.assertEqual(first=response.status_code, second=HttpStatus.OK)
         self.assertContains(
             response=response,
             text=f"hopper-card-{self.hopper.id}",
@@ -505,15 +394,7 @@ class HopperActionViewTest(TestCase):
     # region === Негативные сценарии ===
 
     def test_action_view_error_htmx_returns_400(self):
-        """Проверяет HTMX-ошибку при недопустимом действии.
-
-        Предусловия:
-            Пользователь авторизован, хоппер на поверхности.
-        Шаги:
-            1. Выполнить drill_forward с заголовком HX-Request.
-        Ожидаемый результат:
-            Статус 400, ошибка показана в блоке hopper-error.
-        """
+        """BE_N_12 Проверяет HTMX-ошибку при недопустимом действии."""
         # Arrange
         Steps.step(message="Готовим HTMX-запрос на бурение")
 
@@ -528,11 +409,11 @@ class HopperActionViewTest(TestCase):
 
         # Assert
         Steps.step(message="Проверяем ошибку и отсутствие изменений")
-        self.assertEqual(first=response.status_code, second=400)
+        self.assertEqual(first=response.status_code, second=HttpStatus.BAD_REQUEST)
         self.assertContains(
             response=response,
             text="Подземное бурение невозможно на поверхности",
-            status_code=400,
+            status_code=HttpStatus.BAD_REQUEST,
         )
         self.assertEqual(
             first=response.headers.get("HX-Retarget"),
@@ -543,15 +424,7 @@ class HopperActionViewTest(TestCase):
         self.assertEqual(first=updated_hopper.distance, second=0.0)
 
     def test_action_view_error_json(self):
-        """Проверяет JSON-ошибку при недопустимом действии.
-
-        Предусловия:
-            Пользователь авторизован, хоппер на поверхности.
-        Шаги:
-            1. Выполнить drill_forward без HTMX-заголовка.
-        Ожидаемый результат:
-            Статус 400, JSON содержит текст ошибки.
-        """
+        """BE_N_13 Проверяет JSON-ошибку при недопустимом действии."""
         # Arrange
         Steps.step(message="Готовим обычный запрос на бурение")
 
@@ -565,7 +438,7 @@ class HopperActionViewTest(TestCase):
 
         # Assert
         Steps.step(message="Проверяем JSON-ошибку")
-        self.assertEqual(first=response.status_code, second=400)
+        self.assertEqual(first=response.status_code, second=HttpStatus.BAD_REQUEST)
         self.assertJSONEqual(
             raw=response.content,
             expected_data={
@@ -577,15 +450,7 @@ class HopperActionViewTest(TestCase):
         )
 
     def test_action_view_requires_login(self):
-        """Проверяет редирект на вход для анонимного действия.
-
-        Предусловия:
-            Пользователь вышел из системы.
-        Шаги:
-            1. Отправить действие без авторизации.
-        Ожидаемый результат:
-            Статус 302, редирект на страницу входа.
-        """
+        """BE_N_14 Проверяет редирект на вход для анонимного действия."""
         # Arrange
         Steps.step(message="Выполняем выход из системы")
         Steps.logout_session(client=self.client)
@@ -600,19 +465,11 @@ class HopperActionViewTest(TestCase):
 
         # Assert
         Steps.step(message="Проверяем редирект на вход")
-        self.assertEqual(first=response.status_code, second=302)
+        self.assertEqual(first=response.status_code, second=HttpStatus.FOUND)
         self.assertIn(member=reverse("login"), container=response.url)
 
     def test_action_view_get_not_allowed(self):
-        """Проверяет запрет GET-запроса к эндпоинту действия.
-
-        Предусловия:
-            Пользователь авторизован.
-        Шаги:
-            1. Выполнить GET-запрос к эндпоинту действия.
-        Ожидаемый результат:
-            Статус 405.
-        """
+        """BE_N_15 Проверяет запрет GET-запроса к эндпоинту действия."""
         # Arrange
         Steps.step(message="Готовим GET-запрос к действию")
 
@@ -625,6 +482,9 @@ class HopperActionViewTest(TestCase):
 
         # Assert
         Steps.step(message="Проверяем статус 405")
-        self.assertEqual(first=response.status_code, second=405)
+        self.assertEqual(
+            first=response.status_code,
+            second=HttpStatus.METHOD_NOT_ALLOWED,
+        )
 
     # endregion

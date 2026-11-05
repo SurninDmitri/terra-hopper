@@ -18,6 +18,11 @@ class DashboardPage(BasePage):
             name="Гараж",
             description="Заголовок гаража",
         )
+        self.logout_link = self.find_by_role(
+            role="link",
+            name="Выйти",
+            description="Ссылка выхода из аккаунта",
+        )
         self.garage_list = self.find_by_css(
             selector="#garage-list",
             description="Список транспорта",

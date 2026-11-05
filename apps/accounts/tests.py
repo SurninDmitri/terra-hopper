@@ -2,6 +2,7 @@ from django.contrib.auth.models import User
 from django.test import Client, TestCase
 from django.urls import reverse
 
+from apps.common.testing.constants import HttpStatus, Passwords, Users
 from apps.common.testing.steps import Steps
 
 
@@ -12,16 +13,7 @@ class AccountsViewTest(TestCase):
     # region === Позитивные сценарии ===
 
     def test_register_success_sets_jwt_cookies_and_redirects(self):
-        """Проверяет успешную регистрацию и установку JWT-cookie.
-
-        Предусловия:
-            Пользователь с именем newuser отсутствует.
-        Шаги:
-            1. Отправить форму регистрации с корректными данными.
-        Ожидаемый результат:
-            Пользователь создан, выполнен редирект на дашборд,
-            access_token и refresh_token установлены как HttpOnly.
-        """
+        """BE_P_1 Проверяет успешную регистрацию и установку JWT-cookie."""
         # Arrange
         Steps.step(message="Готовим данные для регистрации")
 
@@ -30,8 +22,8 @@ class AccountsViewTest(TestCase):
         response = Steps.register(
             client=self.client,
             username="newuser",
-            password="StrongPass123",
-            password_confirm="StrongPass123",
+            password=Passwords.STRONG,
+            password_confirm=Passwords.STRONG,
         )
 
         # Assert
@@ -53,25 +45,17 @@ class AccountsViewTest(TestCase):
         self.assertTrue(refresh_token["httponly"])
 
     def test_login_success_sets_jwt_cookies_and_redirects(self):
-        """Проверяет успешный вход и установку JWT-cookie.
-
-        Предусловия:
-            Пользователь driver существует.
-        Шаги:
-            1. Отправить форму входа с корректным паролем.
-        Ожидаемый результат:
-            Выполнен редирект на дашборд, JWT-cookie установлены.
-        """
+        """BE_P_2 Проверяет успешный вход и установку JWT-cookie."""
         # Arrange
         Steps.step(message="Создаём пользователя driver")
-        Steps.create_user(username="driver", password="StrongPass123")
+        Steps.create_user(username=Users.ACCOUNT, password=Passwords.STRONG)
 
         # Act
         Steps.step(message="Входим под пользователем driver")
         response = Steps.login_user(
             client=self.client,
-            username="driver",
-            password="StrongPass123",
+            username=Users.ACCOUNT,
+            password=Passwords.STRONG,
         )
 
         # Assert
@@ -84,22 +68,14 @@ class AccountsViewTest(TestCase):
         self.assertIsNotNone(response.cookies.get("refresh_token"))
 
     def test_logout_deletes_cookies_and_redirects(self):
-        """Проверяет выход из аккаунта и удаление JWT-cookie.
-
-        Предусловия:
-            Пользователь driver вошёл в систему.
-        Шаги:
-            1. Выполнить выход.
-        Ожидаемый результат:
-            Редирект на страницу входа, cookie очищены.
-        """
+        """BE_P_3 Проверяет выход из аккаунта и удаление JWT-cookie."""
         # Arrange
         Steps.step(message="Создаём и авторизуем пользователя driver")
-        Steps.create_user(username="driver", password="StrongPass123")
+        Steps.create_user(username=Users.ACCOUNT, password=Passwords.STRONG)
         Steps.login_user(
             client=self.client,
-            username="driver",
-            password="StrongPass123",
+            username=Users.ACCOUNT,
+            password=Passwords.STRONG,
         )
 
         # Act
@@ -116,15 +92,7 @@ class AccountsViewTest(TestCase):
         self.assertEqual(first=response.cookies["refresh_token"].value, second="")
 
     def test_index_redirects_to_login_when_anonymous(self):
-        """Проверяет редирект анонимного пользователя на страницу входа.
-
-        Предусловия:
-            Пользователь не авторизован.
-        Шаги:
-            1. Открыть главную страницу.
-        Ожидаемый результат:
-            Редирект на страницу входа.
-        """
+        """BE_N_1 Проверяет редирект анонимного пользователя на страницу входа."""
         # Arrange
         Steps.step(message="Проверяем, что пользователь анонимен")
 
@@ -140,22 +108,14 @@ class AccountsViewTest(TestCase):
         )
 
     def test_index_redirects_to_dashboard_when_authenticated(self):
-        """Проверяет редирект авторизованного пользователя на дашборд.
-
-        Предусловия:
-            Пользователь driver авторизован.
-        Шаги:
-            1. Открыть главную страницу.
-        Ожидаемый результат:
-            Редирект на дашборд.
-        """
+        """BE_P_4 Проверяет редирект авторизованного пользователя на дашборд."""
         # Arrange
         Steps.step(message="Создаём и авторизуем пользователя driver")
-        Steps.create_user(username="driver", password="StrongPass123")
+        Steps.create_user(username=Users.ACCOUNT, password=Passwords.STRONG)
         Steps.login(
             client=self.client,
-            username="driver",
-            password="StrongPass123",
+            username=Users.ACCOUNT,
+            password=Passwords.STRONG,
         )
 
         # Act
@@ -174,15 +134,7 @@ class AccountsViewTest(TestCase):
     # region === Негативные сценарии ===
 
     def test_register_password_mismatch_shows_error(self):
-        """Проверяет ошибку регистрации при несовпадении паролей.
-
-        Предусловия:
-            Пользователь с именем newuser отсутствует.
-        Шаги:
-            1. Отправить форму с разными паролями.
-        Ожидаемый результат:
-            Статус 200, показана ошибка, пользователь не создан.
-        """
+        """BE_N_2 Проверяет ошибку регистрации при несовпадении паролей."""
         # Arrange
         Steps.step(message="Готовим данные с несовпадающими паролями")
 
@@ -191,13 +143,13 @@ class AccountsViewTest(TestCase):
         response = Steps.register(
             client=self.client,
             username="newuser",
-            password="StrongPass123",
+            password=Passwords.STRONG,
             password_confirm="OtherPass456",
         )
 
         # Assert
         Steps.step(message="Проверяем ошибку и отсутствие пользователя")
-        self.assertEqual(first=response.status_code, second=200)
+        self.assertEqual(first=response.status_code, second=HttpStatus.OK)
         self.assertContains(
             response=response,
             text="Пароли не совпадают",
@@ -207,61 +159,45 @@ class AccountsViewTest(TestCase):
         )
 
     def test_register_duplicate_username_shows_error(self):
-        """Проверяет ошибку регистрации при занятом имени пользователя.
-
-        Предусловия:
-            Пользователь taken уже существует.
-        Шаги:
-            1. Попытаться зарегистрировать пользователя с именем taken.
-        Ожидаемый результат:
-            Статус 200, показано сообщение о существующем пользователе.
-        """
+        """BE_N_3 Проверяет ошибку регистрации при занятом имени пользователя."""
         # Arrange
         Steps.step(message="Создаём пользователя taken")
-        Steps.create_user(username="taken", password="StrongPass123")
+        Steps.create_user(username="taken", password=Passwords.STRONG)
 
         # Act
         Steps.step(message="Пытаемся зарегистрировать повторное имя")
         response = Steps.register(
             client=self.client,
             username="taken",
-            password="StrongPass123",
-            password_confirm="StrongPass123",
+            password=Passwords.STRONG,
+            password_confirm=Passwords.STRONG,
         )
 
         # Assert
         Steps.step(message="Проверяем сообщение об ошибке")
-        self.assertEqual(first=response.status_code, second=200)
+        self.assertEqual(first=response.status_code, second=HttpStatus.OK)
         self.assertContains(
             response=response,
             text="уже существует",
         )
 
     def test_login_wrong_password_shows_error(self):
-        """Проверяет ошибку входа при неверном пароле.
-
-        Предусловия:
-            Пользователь driver существует.
-        Шаги:
-            1. Отправить форму входа с неверным паролем.
-        Ожидаемый результат:
-            Статус 200, форма содержит ошибки.
-        """
+        """BE_N_4 Проверяет ошибку входа при неверном пароле."""
         # Arrange
         Steps.step(message="Создаём пользователя driver")
-        Steps.create_user(username="driver", password="StrongPass123")
+        Steps.create_user(username=Users.ACCOUNT, password=Passwords.STRONG)
 
         # Act
         Steps.step(message="Пытаемся войти с неверным паролем")
         response = Steps.login_user(
             client=self.client,
-            username="driver",
+            username=Users.ACCOUNT,
             password="wrong",
         )
 
         # Assert
         Steps.step(message="Проверяем ошибки формы")
-        self.assertEqual(first=response.status_code, second=200)
+        self.assertEqual(first=response.status_code, second=HttpStatus.OK)
         self.assertIn(member="form", container=response.context)
         self.assertTrue(response.context["form"].errors)
 
@@ -272,20 +208,12 @@ class JWTMiddlewareTest(TestCase):
     def setUp(self):
         self.client = Client()
         self.user = Steps.create_user(
-            username="driver",
-            password="StrongPass123",
+            username=Users.ACCOUNT,
+            password=Passwords.STRONG,
         )
 
     def test_access_token_in_cookie_authenticates_request(self):
-        """Проверяет аутентификацию запроса по access_token в cookie.
-
-        Предусловия:
-            Пользователь driver существует.
-        Шаги:
-            1. Выполнить запрос с access_token в cookie.
-        Ожидаемый результат:
-            Пользователь распознан, редирект на дашборд.
-        """
+        """BE_P_5 Проверяет аутентификацию запроса по access_token в cookie."""
         # Arrange
         Steps.step(message="Создаём access_token для пользователя")
         access_token = Steps.create_access_token(user=self.user)

@@ -20,22 +20,15 @@
 
 ```python
 def test_basic_jump_success(self):
-    """Проверяет, что обычный прыжок увеличивает дистанцию на 10 м.
-
-    Предусловия:
-        Хоппер на поверхности, сила 100, дистанция 0.
-    Шаги:
-        1. Выполнить обычный прыжок.
-    Ожидаемый результат:
-        distance=10.0, strength=95.0, best_distance=10.0.
-    """
+    """BE_P_6 Проверяет обычный прыжок на поверхности."""
 ```
 
 Требования:
 
+- Docstring начинается с ID теста: `BE_P_1`, `BE_N_1`, `DB_P_1`, `DB_N_1`, `UI_P_1`, `UI_N_1`.
+- После ID идёт короткое описание поведения.
+- Предусловия, шаги и ожидаемый результат в docstring не пишем — они ведутся в `AT_TEST_CASES.md`.
 - Язык — русский.
-- Docstring короткий: 3–8 строк.
-- В docstring описываем поведение, а не перечисление вызовов.
 - Не дублируем имя теста дословно, а объясняем суть.
 
 ## 3. Структура теста: Arrange / Act / Assert
@@ -287,15 +280,7 @@ self.assertEqual(first=updated_hopper.distance, second=10.0)
 
 ```python
 def test_basic_jump_success(self):
-    """Проверяет, что обычный прыжок увеличивает дистанцию на 10 м.
-
-    Предусловия:
-        Хоппер на поверхности, сила 100, дистанция 0.
-    Шаги:
-        1. Выполнить обычный прыжок.
-    Ожидаемый результат:
-        distance=10.0, strength=95.0, best_distance=10.0.
-    """
+    """BE_P_6 Проверяет обычный прыжок на поверхности."""
     # Arrange
     Steps.step(message="Создаём хоппера для прыжка")
     hopper = Steps.create_hopper(
@@ -321,7 +306,8 @@ def test_basic_jump_success(self):
 
 ## 12. Чек-лист нового АТ
 
-- [ ] Есть docstring на русском.
+- [ ] В начале docstring указан ID теста.
+- [ ] Предусловия, шаги и ожидаемый результат внесены в `AT_TEST_CASES.md`.
 - [ ] Есть `# Arrange`, `# Act`, `# Assert`.
 - [ ] Все многоаргументные вызовы используют именованные аргументы.
 - [ ] Переменные названы по-доменному.
@@ -404,53 +390,51 @@ apps/common/testing/ui/
 ├── base_page.py         # открытие страницы и поиск элементов
 ├── pages/               # страницы и их элементы
 │   ├── login_page.py
+│   ├── register_page.py
 │   ├── dashboard_page.py
 │   └── game_page.py
 ├── steps.py             # StepsUI — действия для АТ
-└── test_case.py         # PlaywrightLiveServerTestCase
+└── test_case.py         # PlaywrightLiveServerTestCase, ServiceUserUiTestCase
 ```
+
+Общие константы лежат в `apps/common/testing/constants.py`.
 
 Правила:
 
 - Элементы и селекторы храним только в классах страниц `apps/common/testing/ui/pages/`.
 - В тестах не должно быть `page.locator(...)`, CSS-селекторов и `get_by_role(...)`.
-- Пользовательские действия оформляем методами `StepsUI`: `login`, `start_race`, `perform_basic_jump` и т.д.
+- Пользовательские действия оформляем методами `StepsUI`: `login`, `register`, `logout`, `start_race`, `perform_basic_jump` и т.д.
 - Проверки UI оформляем методами `StepsUI` или страниц: `assert_distance`, `assert_hopper_visible`.
 - Каждый логический шаг теста сопровождаем `Steps.step(...)`.
 - Тестовые данные создаём через обычный `Steps` до начала UI-сценария.
 - UI-тест наследуем от `PlaywrightLiveServerTestCase`, браузер и `self.ui` создаются автоматически.
+- Если авторизация не является предметом проверки, наследуем от `ServiceUserUiTestCase`: сервисная учётка создаётся в `setUp`, вход выполняется методом `login_as_service_user()`.
 
 Пример:
 
 ```python
+from apps.common.testing.constants import HopperData
 from apps.common.testing.steps import Steps
-from apps.common.testing.ui.test_case import PlaywrightLiveServerTestCase
+from apps.common.testing.ui.test_case import ServiceUserUiTestCase
 
 
-class HopperGameUiTest(PlaywrightLiveServerTestCase):
+class HopperGameUiTest(ServiceUserUiTestCase):
     def setUp(self):
         super().setUp()
-        self.user = Steps.create_user(
-            username="ui-driver",
-            password="StrongPass123",
-        )
         self.hopper = Steps.create_hopper(
-            user=self.user,
-            name="Крот-UI",
-            mass_kg=200.0,
+            user=self.service_user,
+            name=HopperData.DEFAULT_NAME,
+            mass_kg=HopperData.DEFAULT_MASS_KG,
         )
 
     def test_basic_jump_from_game_screen(self):
         """Проверяет обычный прыжок через игровой интерфейс."""
         # Arrange
-        Steps.step(message="Готовим пользователя и хоппера")
+        Steps.step(message="Готовим хоппера для UI-теста")
 
         # Act
         Steps.step(message="Авторизуемся через форму входа")
-        self.ui.login(
-            username="ui-driver",
-            password="StrongPass123",
-        )
+        self.login_as_service_user()
 
         Steps.step(message="Запускаем заезд с дашборда")
         self.ui.start_race(hopper_name=self.hopper.name)
@@ -462,6 +446,33 @@ class HopperGameUiTest(PlaywrightLiveServerTestCase):
         Steps.step(message="Проверяем дистанцию и рекорд")
         self.ui.assert_distance(expected_distance="10.0")
         self.ui.assert_record(expected_record="10.0")
+```
+
+Пример UI-теста регистрации:
+
+```python
+from apps.common.testing.constants import Passwords
+from apps.common.testing.steps import Steps
+from apps.common.testing.ui.test_case import PlaywrightLiveServerTestCase
+
+
+class RegistrationUiTest(PlaywrightLiveServerTestCase):
+    def test_register_via_ui_opens_dashboard(self):
+        """Проверяет регистрацию пользователя через UI."""
+        # Arrange
+        Steps.step(message="Готовим данные для регистрации")
+
+        # Act
+        Steps.step(message="Регистрируем пользователя через форму")
+        self.ui.register(
+            username="ui-register",
+            password=Passwords.STRONG,
+            password_confirm=Passwords.STRONG,
+        )
+
+        # Assert
+        Steps.step(message="Проверяем, что открылся дашборд")
+        self.ui.assert_dashboard_url()
 ```
 
 Запуск:
@@ -499,3 +510,28 @@ UI_HEADLESS=false UI_SLOW_MO=500 \
 - `UI_SLOW_MO` — задержка действий Playwright в миллисекундах, по умолчанию `0`.
 
 Особенность: sync Playwright запускает event loop в текущем потоке, поэтому `PlaywrightLiveServerTestCase` на время UI-тестов выставляет `DJANGO_ALLOW_ASYNC_UNSAFE=true` и восстанавливает прежнее значение после класса.
+
+## 16. Константы
+
+Общие константы лежат в `apps/common/testing/constants.py`.
+
+Выносим только значения, которые многократно повторяются в тестах:
+
+- `Users` — логины (`TEST_DRIVER`, `ACCOUNT`);
+- `Passwords` — пароли (`DEFAULT`, `STRONG`);
+- `ServiceAccount` — сервисная учётка UI-тестов;
+- `HopperData` — имя и масса хоппера по умолчанию;
+- `HttpStatus` — HTTP-статусы (`OK`, `FOUND`, `BAD_REQUEST`, `NOT_FOUND`, `METHOD_NOT_ALLOWED`).
+
+Не создаём классы под данные конкретного сценария и ожидаемые результаты: такие значения остаются в тесте рядом с проверкой.
+
+## 17. ID тестов и реестр
+
+- Каждый тест имеет уникальный ID в начале docstring.
+- Формат ID: `<СЛОЙ>_<ТИП>_<НОМЕР>`, например `UI_P_1`, `BE_N_1`, `DB_P_1`.
+- Слой: `BE` — backend/API/сервисы/views/middleware, `DB` — модель и её ограничения, `UI` — Playwright.
+- Тип: `P` — позитивный сценарий, `N` — негативный сценарий.
+- Нумерация ведётся отдельно для каждой пары «слой + тип».
+- ID присваивается один раз. При переименовании тестового метода ID не меняется.
+- Все тесты ведутся в `AT_TEST_CASES.md` в таблице: ID, короткое название, предусловия/шаги/ожидаемый результат, тестовый класс и метод.
+- При добавлении, изменении или удалении теста обязательно обновляем `AT_TEST_CASES.md`.

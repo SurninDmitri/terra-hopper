@@ -1,6 +1,7 @@
 from django.core.exceptions import ValidationError
 from django.test import Client, TestCase
 
+from apps.common.testing.constants import HopperData, HttpStatus
 from apps.common.testing.steps import Steps
 from apps.hopper.models import Hopper
 
@@ -12,15 +13,7 @@ class HopperModelTest(TestCase):
     # region === Позитивные сценарии ===
 
     def test_create_hopper_valid(self):
-        """Проверяет создание хоппера с корректными полями.
-
-        Предусловия:
-            Пользователь test существует.
-        Шаги:
-            1. Создать хоппера с массой 200 кг.
-        Ожидаемый результат:
-            Хоппер сохранён с указанными именем и массой.
-        """
+        """DB_P_1 Проверяет создание хоппера с корректными полями."""
         # Arrange
         Steps.step(message="Готовим корректные данные хоппера")
 
@@ -29,13 +22,13 @@ class HopperModelTest(TestCase):
         hopper = Steps.create_hopper(
             user=self.user,
             name="Hopper1",
-            mass_kg=200.0,
+            mass_kg=HopperData.DEFAULT_MASS_KG,
         )
 
         # Assert
         Steps.step(message="Проверяем сохранённые поля")
         self.assertEqual(first=hopper.name, second="Hopper1")
-        self.assertEqual(first=hopper.mass_kg, second=200.0)
+        self.assertEqual(first=hopper.mass_kg, second=HopperData.DEFAULT_MASS_KG)
         self.assertEqual(first=hopper.strength, second=100.0)
 
     # endregion
@@ -43,21 +36,13 @@ class HopperModelTest(TestCase):
     # region === Негативные сценарии ===
 
     def test_name_empty_raises(self):
-        """Проверяет ошибку сохранения хоппера с пустым именем.
-
-        Предусловия:
-            Пользователь test существует.
-        Шаги:
-            1. Попытаться сохранить хоппера с именем из пробелов.
-        Ожидаемый результат:
-            Выброшено ValidationError, запись не создана.
-        """
+        """DB_N_1 Проверяет ошибку сохранения хоппера с пустым именем."""
         # Arrange
         Steps.step(message="Создаём хоппера с пустым именем")
         invalid_hopper = Steps.build_hopper(
             user=self.user,
             name="   ",
-            mass_kg=200.0,
+            mass_kg=HopperData.DEFAULT_MASS_KG,
         )
 
         # Act
@@ -69,15 +54,7 @@ class HopperModelTest(TestCase):
         self.assertFalse(Hopper.objects.exists())
 
     def test_mass_below_minimum_raises(self):
-        """Проверяет ошибку сохранения при массе ниже допустимой.
-
-        Предусловия:
-            Пользователь test существует.
-        Шаги:
-            1. Попытаться сохранить хоппера с массой 50 кг.
-        Ожидаемый результат:
-            Выброшено ValidationError, запись не создана.
-        """
+        """DB_N_2 Проверяет ошибку сохранения при массе ниже допустимой."""
         # Arrange
         Steps.step(message="Создаём хоппера с массой ниже минимума")
         invalid_hopper = Steps.build_hopper(
@@ -95,15 +72,7 @@ class HopperModelTest(TestCase):
         self.assertFalse(Hopper.objects.exists())
 
     def test_mass_above_maximum_raises(self):
-        """Проверяет ошибку сохранения при массе выше допустимой.
-
-        Предусловия:
-            Пользователь test существует.
-        Шаги:
-            1. Попытаться сохранить хоппера с массой 600 кг.
-        Ожидаемый результат:
-            Выброшено ValidationError, запись не создана.
-        """
+        """DB_N_3 Проверяет ошибку сохранения при массе выше допустимой."""
         # Arrange
         Steps.step(message="Создаём хоппера с массой выше максимума")
         invalid_hopper = Steps.build_hopper(
@@ -121,21 +90,13 @@ class HopperModelTest(TestCase):
         self.assertFalse(Hopper.objects.exists())
 
     def test_strength_range_raises(self):
-        """Проверяет ошибку сохранения при отрицательной силе.
-
-        Предусловия:
-            Пользователь test существует.
-        Шаги:
-            1. Попытаться сохранить хоппера с силой -1.
-        Ожидаемый результат:
-            Выброшено ValidationError, запись не создана.
-        """
+        """DB_N_4 Проверяет ошибку сохранения при отрицательной силе."""
         # Arrange
         Steps.step(message="Создаём хоппера с отрицательной силой")
         invalid_hopper = Steps.build_hopper(
             user=self.user,
             name="H",
-            mass_kg=200.0,
+            mass_kg=HopperData.DEFAULT_MASS_KG,
             strength=-1.0,
         )
 
@@ -148,21 +109,13 @@ class HopperModelTest(TestCase):
         self.assertFalse(Hopper.objects.exists())
 
     def test_reactor_energy_range_raises(self):
-        """Проверяет ошибку сохранения при энергии реактора больше 100.
-
-        Предусловия:
-            Пользователь test существует.
-        Шаги:
-            1. Попытаться сохранить хоппера с энергией 101.
-        Ожидаемый результат:
-            Выброшено ValidationError, запись не создана.
-        """
+        """DB_N_5 Проверяет ошибку сохранения при энергии реактора больше 100."""
         # Arrange
         Steps.step(message="Создаём хоппера с избыточной энергией реактора")
         invalid_hopper = Steps.build_hopper(
             user=self.user,
             name="H",
-            mass_kg=200.0,
+            mass_kg=HopperData.DEFAULT_MASS_KG,
             reactor_energy=101.0,
         )
 
@@ -190,15 +143,7 @@ class HopperCreateTest(TestCase):
     # region === Позитивные сценарии ===
 
     def test_service_create(self):
-        """Проверяет создание хоппера через сервис.
-
-        Предусловия:
-            Пользователь u существует.
-        Шаги:
-            1. Создать хоппера через create_hopper_for_user.
-        Ожидаемый результат:
-            Хоппер сохранён с именем Test и массой 250 кг.
-        """
+        """BE_P_23 Проверяет создание хоппера через сервис."""
         # Arrange
         Steps.step(message="Готовим данные для сервиса создания")
 
@@ -216,15 +161,7 @@ class HopperCreateTest(TestCase):
         self.assertEqual(first=hopper.mass_kg, second=250.0)
 
     def test_create_view_success(self):
-        """Проверяет успешное создание хоппера через HTTP-эндпоинт.
-
-        Предусловия:
-            Пользователь u авторизован.
-        Шаги:
-            1. Отправить форму создания хоппера.
-        Ожидаемый результат:
-            Статус 200, хоппер сохранён в БД.
-        """
+        """BE_P_24 Проверяет успешное создание хоппера через HTTP-эндпоинт."""
         # Arrange
         Steps.step(message="Готовим данные для создания через эндпоинт")
 
@@ -238,7 +175,7 @@ class HopperCreateTest(TestCase):
 
         # Assert
         Steps.step(message="Проверяем ответ и запись в БД")
-        self.assertEqual(first=response.status_code, second=200)
+        self.assertEqual(first=response.status_code, second=HttpStatus.OK)
         self.assertTrue(
             Hopper.objects.filter(user=self.user, name="MyHopper").exists(),
         )
@@ -248,15 +185,7 @@ class HopperCreateTest(TestCase):
     # region === Негативные сценарии ===
 
     def test_service_empty_name(self):
-        """Проверяет ошибку сервиса при пустом имени хоппера.
-
-        Предусловия:
-            Пользователь u существует.
-        Шаги:
-            1. Создать хоппера с именем из пробелов.
-        Ожидаемый результат:
-            Выброшено ValueError, хоппер не создан.
-        """
+        """BE_N_25 Проверяет ошибку сервиса при пустом имени хоппера."""
         # Arrange
         Steps.step(message="Готовим пустое имя")
 
@@ -268,7 +197,7 @@ class HopperCreateTest(TestCase):
             Steps.create_hopper_for_user(
                 user=self.user,
                 name="   ",
-                mass_kg=200.0,
+                mass_kg=HopperData.DEFAULT_MASS_KG,
             )
         self.assertIn(
             member="Имя не может быть пустым",
@@ -277,15 +206,7 @@ class HopperCreateTest(TestCase):
         self.assertFalse(Hopper.objects.exists())
 
     def test_service_mass_below_minimum(self):
-        """Проверяет ошибку сервиса при массе ниже допустимой.
-
-        Предусловия:
-            Пользователь u существует.
-        Шаги:
-            1. Создать хоппера с массой 50 кг.
-        Ожидаемый результат:
-            Выброшено ValueError, хоппер не создан.
-        """
+        """BE_N_26 Проверяет ошибку сервиса при массе ниже допустимой."""
         # Arrange
         Steps.step(message="Готовим массу ниже минимума")
 
@@ -306,15 +227,7 @@ class HopperCreateTest(TestCase):
         self.assertFalse(Hopper.objects.exists())
 
     def test_service_mass_above_maximum(self):
-        """Проверяет ошибку сервиса при массе выше допустимой.
-
-        Предусловия:
-            Пользователь u существует.
-        Шаги:
-            1. Создать хоппера с массой 600 кг.
-        Ожидаемый результат:
-            Выброшено ValueError, хоппер не создан.
-        """
+        """BE_N_27 Проверяет ошибку сервиса при массе выше допустимой."""
         # Arrange
         Steps.step(message="Готовим массу выше максимума")
 
@@ -335,15 +248,7 @@ class HopperCreateTest(TestCase):
         self.assertFalse(Hopper.objects.exists())
 
     def test_create_view_error(self):
-        """Проверяет ошибку HTTP-эндпоинта при пустом имени.
-
-        Предусловия:
-            Пользователь u авторизован.
-        Шаги:
-            1. Отправить форму создания с пустым именем.
-        Ожидаемый результат:
-            Статус 400, показана ошибка, хоппер не создан.
-        """
+        """BE_N_28 Проверяет ошибку HTTP-эндпоинта при пустом имени."""
         # Arrange
         Steps.step(message="Готовим пустое имя для эндпоинта")
 
@@ -357,11 +262,11 @@ class HopperCreateTest(TestCase):
 
         # Assert
         Steps.step(message="Проверяем ошибку и отсутствие записи")
-        self.assertEqual(first=response.status_code, second=400)
+        self.assertEqual(first=response.status_code, second=HttpStatus.BAD_REQUEST)
         self.assertContains(
             response=response,
             text="Имя не может быть пустым",
-            status_code=400,
+            status_code=HttpStatus.BAD_REQUEST,
         )
         self.assertFalse(Hopper.objects.exists())
 

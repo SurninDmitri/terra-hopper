@@ -6,6 +6,8 @@ from django.contrib.staticfiles.testing import StaticLiveServerTestCase
 from playwright.sync_api import Browser, BrowserContext, Page, Playwright
 from playwright.sync_api import sync_playwright
 
+from apps.common.testing.constants import ServiceAccount
+from apps.common.testing.steps import Steps
 from apps.common.testing.ui.steps import StepsUI
 
 
@@ -82,3 +84,25 @@ class PlaywrightLiveServerTestCase(StaticLiveServerTestCase):
     def tearDown(self):
         self.context.close()
         super().tearDown()
+
+
+class ServiceUserUiTestCase(PlaywrightLiveServerTestCase):
+    """UI-тест с готовой сервисной учётной записью.
+
+    Пользователь создаётся перед каждым тестом, поэтому тесты остаются
+    изолированными, но всегда используют одинаковые логин и пароль.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.service_user = Steps.create_user(
+            username=ServiceAccount.USERNAME,
+            password=ServiceAccount.PASSWORD,
+        )
+
+    def login_as_service_user(self) -> None:
+        """Авторизует сервисную учётку через форму входа."""
+        self.ui.login(
+            username=ServiceAccount.USERNAME,
+            password=ServiceAccount.PASSWORD,
+        )
