@@ -27,6 +27,10 @@ class DashboardPage(BasePage):
             selector="#garage-list",
             description="Список транспорта",
         )
+        self.leaderboard = self.find_by_css(
+            selector="#leaderboard",
+            description="Турнирная таблица",
+        )
         self.create_hopper_button = self.find_by_role(
             role="button",
             name="+ Создать транспорт",
@@ -70,3 +74,24 @@ class DashboardPage(BasePage):
 
     def assert_hopper_missing(self, hopper_name: str) -> None:
         self.hopper_card(hopper_name=hopper_name).assert_count(expected_count=0)
+
+    def leaderboard_row(self, username: str, hopper_name: str) -> BaseElement:
+        locator = (
+            self.leaderboard.locator.get_by_role("row")
+            .filter(has_text=username)
+            .filter(has_text=hopper_name)
+        )
+        return BaseElement(
+            locator=locator,
+            description=f"Строка турнирной таблицы {username} / {hopper_name}",
+        )
+
+    def assert_leaderboard_entry(
+        self,
+        username: str,
+        hopper_name: str,
+        expected_record: str,
+    ) -> None:
+        row = self.leaderboard_row(username=username, hopper_name=hopper_name)
+        row.assert_visible()
+        row.assert_contains_text(expected_text=expected_record)

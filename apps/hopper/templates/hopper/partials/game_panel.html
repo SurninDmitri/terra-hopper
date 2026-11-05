@@ -3,7 +3,7 @@
         <h2 class="text-lg font-bold">Состояние</h2>
         <div>
             <div class="flex justify-between text-sm mb-1">
-                <span>Сила</span><span>{{ hopper.strength|floatformat:1 }}%</span>
+                <span>Сила</span><span id="panel-strength-value">{{ hopper.strength|floatformat:1 }}%</span>
             </div>
             <div class="w-full bg-gray-200 rounded h-3">
                 <div class="h-3 rounded {% if hopper.strength < 30 %}bg-amber-500{% else %}bg-green-500{% endif %}" style="width: {{ hopper.strength }}%;"></div>
@@ -11,17 +11,17 @@
         </div>
         <div>
             <div class="flex justify-between text-sm mb-1">
-                <span>Энергия реактора</span><span>{{ hopper.reactor_energy|floatformat:1 }}%</span>
+                <span>Энергия реактора</span><span id="panel-reactor-energy-value">{{ hopper.reactor_energy|floatformat:1 }}%</span>
             </div>
             <div class="w-full bg-gray-200 rounded h-3">
                 <div class="bg-blue-500 h-3 rounded" style="width: {{ hopper.reactor_energy }}%;"></div>
             </div>
         </div>
         <div class="grid grid-cols-2 gap-2 text-sm">
-            <div class="px-3 py-2 rounded border {% if hopper.location_state == 'surface' %}bg-sky-50 text-sky-800 border-sky-200{% else %}bg-yellow-50 text-yellow-800 border-yellow-200{% endif %}">
+            <div id="panel-location" class="px-3 py-2 rounded border {% if hopper.location_state == 'surface' %}bg-sky-50 text-sky-800 border-sky-200{% else %}bg-yellow-50 text-yellow-800 border-yellow-200{% endif %}">
                 Положение: {% if hopper.location_state == 'surface' %}На поверхности{% else %}Под землей{% endif %}
             </div>
-            <div class="px-3 py-2 rounded border bg-gray-50">
+            <div id="panel-distance" class="px-3 py-2 rounded border bg-gray-50">
                 Дистанция: {{ hopper.distance|floatformat:1 }} м
             </div>
         </div>

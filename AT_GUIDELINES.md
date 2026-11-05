@@ -428,7 +428,7 @@ class HopperGameUiTest(ServiceUserUiTestCase):
         )
 
     def test_basic_jump_from_game_screen(self):
-        """Проверяет обычный прыжок через игровой интерфейс."""
+        """UI_P_3 Проверяет обычный прыжок через игровой интерфейс."""
         # Arrange
         Steps.step(message="Готовим хоппера для UI-теста")
 

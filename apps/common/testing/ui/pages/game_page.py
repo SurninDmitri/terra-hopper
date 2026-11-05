@@ -20,6 +20,36 @@ class GamePage(BasePage):
             selector="#hud-record",
             description="Значение рекорда в HUD",
         )
+        self.strength_value = self.find_by_css(
+            selector="#panel-strength-value",
+            description="Значение силы в панели состояния",
+        )
+        self.reactor_energy_value = self.find_by_css(
+            selector="#panel-reactor-energy-value",
+            description="Значение энергии реактора в панели состояния",
+        )
+        self.location_value = self.find_by_css(
+            selector="#panel-location",
+            description="Положение хоппера в панели состояния",
+        )
+        self.panel_distance_value = self.find_by_css(
+            selector="#panel-distance",
+            description="Дистанция в панели состояния",
+        )
+        self.back_to_garage_link = self.find_by_role(
+            role="link",
+            name="Назад в гараж",
+            description="Ссылка возврата в гараж",
+        )
+        self.game_over_modal = self.find_by_css(
+            selector="#game-over-modal",
+            description="Модальное окно окончания игры",
+        )
+        self.return_to_garage_link = self.find_by_role(
+            role="link",
+            name="Вернуться в гараж",
+            description="Ссылка возврата в гараж из окна окончания игры",
+        )
         self.basic_jump_button = self.find_by_role(
             role="button",
             name="Обычный прыжок (+10м)",
@@ -62,3 +92,34 @@ class GamePage(BasePage):
 
     def assert_record(self, expected_record: str) -> None:
         self.record_value.assert_text(expected_text=expected_record)
+
+    def assert_strength(self, expected_strength: str) -> None:
+        self.strength_value.assert_text(expected_text=expected_strength)
+
+    def assert_reactor_energy(self, expected_energy: str) -> None:
+        self.reactor_energy_value.assert_text(expected_text=expected_energy)
+
+    def assert_location(self, expected_location: str) -> None:
+        self.location_value.assert_contains_text(expected_text=expected_location)
+
+    def assert_panel_distance(self, expected_distance: str) -> None:
+        self.panel_distance_value.assert_contains_text(
+            expected_text=expected_distance,
+        )
+
+    def assert_basic_jump_enabled(self) -> None:
+        self.basic_jump_button.assert_enabled()
+
+    def assert_basic_jump_disabled(self) -> None:
+        self.basic_jump_button.assert_disabled()
+
+    def assert_long_jump_disabled(self) -> None:
+        self.long_jump_button.assert_disabled()
+
+    def assert_game_over(self) -> None:
+        self.game_over_modal.assert_visible()
+        self.game_over_modal.assert_contains_text(expected_text="Игра окончена")
+        self.game_over_modal.assert_contains_text(
+            expected_text="Силы транспорта исчерпаны",
+        )
+        self.return_to_garage_link.assert_visible()

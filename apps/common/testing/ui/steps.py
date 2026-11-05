@@ -4,6 +4,7 @@ from django.urls import reverse
 from playwright.sync_api import Page
 
 from apps.common.testing.steps import logged_method
+from apps.common.testing.ui.base_element import BaseElement
 from apps.common.testing.ui.pages import (
     DashboardPage,
     GamePage,
@@ -80,35 +81,52 @@ class StepsUI:
     def _wait_for_htmx(self) -> None:
         self.page.wait_for_function("() => window.htmx !== undefined")
 
+    def _click_action(self, button: BaseElement) -> None:
+        self._wait_for_htmx()
+        self.page.evaluate(
+            """() => {
+                window.__atHtmxSettled = false;
+                document.body.addEventListener(
+                    "htmx:afterSettle",
+                    () => { window.__atHtmxSettled = true; },
+                    { once: true },
+                );
+            }"""
+        )
+        button.click()
+        self.page.wait_for_function("() => window.__atHtmxSettled === true")
+
     @logged_method
     def perform_basic_jump(self) -> None:
-        self._wait_for_htmx()
-        self.game_page.basic_jump_button.click()
+        self._click_action(button=self.game_page.basic_jump_button)
+
+    @logged_method
+    def perform_basic_jumps_until_disabled(self, max_attempts: int = 15) -> None:
+        for _ in range(max_attempts):
+            if not self.game_page.basic_jump_button.is_enabled:
+                return
+            self.perform_basic_jump()
+        raise AssertionError("Кнопка обычного прыжка не заблокировалась")
 
     @logged_method
     def perform_long_jump(self) -> None:
-        self._wait_for_htmx()
-        self.game_page.long_jump_button.click()
+        self._click_action(button=self.game_page.long_jump_button)
 
     @logged_method
     def perform_reactor_jump(self) -> None:
-        self._wait_for_htmx()
-        self.game_page.reactor_jump_button.click()
+        self._click_action(button=self.game_page.reactor_jump_button)
 
     @logged_method
     def go_underground(self) -> None:
-        self._wait_for_htmx()
-        self.game_page.go_underground_button.click()
+        self._click_action(button=self.game_page.go_underground_button)
 
     @logged_method
     def return_to_surface(self) -> None:
-        self._wait_for_htmx()
-        self.game_page.return_to_surface_button.click()
+        self._click_action(button=self.game_page.return_to_surface_button)
 
     @logged_method
     def drill_forward(self) -> None:
-        self._wait_for_htmx()
-        self.game_page.drill_forward_button.click()
+        self._click_action(button=self.game_page.drill_forward_button)
 
     @logged_method
     def assert_distance(self, expected_distance: str) -> None:
@@ -117,6 +135,55 @@ class StepsUI:
     @logged_method
     def assert_record(self, expected_record: str) -> None:
         self.game_page.assert_record(expected_record=expected_record)
+
+    @logged_method
+    def assert_strength(self, expected_strength: str) -> None:
+        self.game_page.assert_strength(expected_strength=expected_strength)
+
+    @logged_method
+    def assert_reactor_energy(self, expected_energy: str) -> None:
+        self.game_page.assert_reactor_energy(expected_energy=expected_energy)
+
+    @logged_method
+    def assert_location(self, expected_location: str) -> None:
+        self.game_page.assert_location(expected_location=expected_location)
+
+    @logged_method
+    def assert_panel_distance(self, expected_distance: str) -> None:
+        self.game_page.assert_panel_distance(expected_distance=expected_distance)
+
+    @logged_method
+    def assert_basic_jump_enabled(self) -> None:
+        self.game_page.assert_basic_jump_enabled()
+
+    @logged_method
+    def assert_basic_jump_disabled(self) -> None:
+        self.game_page.assert_basic_jump_disabled()
+
+    @logged_method
+    def assert_long_jump_disabled(self) -> None:
+        self.game_page.assert_long_jump_disabled()
+
+    @logged_method
+    def assert_game_over(self) -> None:
+        self.game_page.assert_game_over()
+
+    @logged_method
+    def return_to_garage_from_game_over(self) -> None:
+        self.game_page.return_to_garage_link.click()
+
+    @logged_method
+    def assert_leaderboard_entry(
+        self,
+        username: str,
+        hopper_name: str,
+        expected_record: str,
+    ) -> None:
+        self.dashboard_page.assert_leaderboard_entry(
+            username=username,
+            hopper_name=hopper_name,
+            expected_record=expected_record,
+        )
 
     @logged_method
     def assert_on_dashboard(self) -> None:
