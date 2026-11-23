@@ -49,24 +49,22 @@ class PlaywrightLiveServerTestCase(StaticLiveServerTestCase):
         super().setUpClass()
         cls._async_unsafe_was_set = "DJANGO_ALLOW_ASYNC_UNSAFE" in os.environ
         cls._async_unsafe_value = os.environ.get("DJANGO_ALLOW_ASYNC_UNSAFE")
+        cls.addClassCleanup(cls._restore_async_unsafe)
         os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
         cls.playwright = sync_playwright().start()
+        cls.addClassCleanup(cls.playwright.stop)
         cls.browser = cls.playwright.chromium.launch(
             headless=cls.headless,
             slow_mo=cls.slow_mo,
         )
+        cls.addClassCleanup(cls.browser.close)
 
     @classmethod
-    def tearDownClass(cls):
-        try:
-            cls.browser.close()
-            cls.playwright.stop()
-        finally:
-            if cls._async_unsafe_was_set:
-                os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = cls._async_unsafe_value or ""
-            else:
-                os.environ.pop("DJANGO_ALLOW_ASYNC_UNSAFE", None)
-            super().tearDownClass()
+    def _restore_async_unsafe(cls):
+        if cls._async_unsafe_was_set:
+            os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = cls._async_unsafe_value or ""
+        else:
+            os.environ.pop("DJANGO_ALLOW_ASYNC_UNSAFE", None)
 
     def setUp(self):
         super().setUp()

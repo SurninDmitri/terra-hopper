@@ -54,11 +54,9 @@ def test_basic_jump_success(self):
 Правильно:
 
 ```python
-Steps.create_hopper(
-    user=self.user,
-    name="Крот-1",
-    mass_kg=200.0,
-)
+Steps.create_hopper(user=self.user,
+                    name="Крот-1",
+                    mass_kg=200.0)
 ```
 
 Неправильно:
@@ -76,16 +74,36 @@ Steps.create_hopper(self.user, "Крот-1", 200.0)
 Примеры:
 
 ```python
-response = Steps.post_action(
-    client=self.client,
-    hopper_id=self.hopper.id,
-    action_type="basic_jump",
-)
+response = Steps.post_action(client=self.client,
+                             hopper_id=self.hopper.id,
+                             action_type="basic_jump")
 
 self.assertEqual(first=response.status_code, second=200)
-self.assertContains(
-    response=response,
-    text="Дистанция: 10,0",
+self.assertContains(response=response,
+                    text="Дистанция: 10,0")
+```
+
+### Форматирование вызовов
+
+- Короткие вызовы можно оставлять в одной строке.
+- В многострочном вызове первый аргумент пишем сразу после `(`, остальные — каждый с новой строки, выровненной по первому аргументу.
+- Закрывающую `)` ставим сразу после последнего аргумента, без завершающей запятой. Скобки не выносим на отдельные строки.
+- Правило применяется к методам `Steps` и остальным вызовам в АТ.
+- Исключение — `assertFormError()`: сохраняем развёрнутый формат с отдельными строками для `form`, `field`, `errors` и закрывающей скобки.
+
+```python
+response = Steps.register(client=self.client,
+                          username="newuser",
+                          password=Passwords.STRONG,
+                          password_confirm=Passwords.STRONG)
+
+self.assertRedirects(response=response,
+                     expected_url=reverse("hopper:dashboard"))
+
+self.assertFormError(
+    form=form,
+    field=None,
+    errors=["Пароли не совпадают."],
 )
 ```
 
@@ -175,12 +193,10 @@ Steps.create_user(username="driver", password="StrongPass123")
 Steps.login(client=self.client, username="driver", password="StrongPass123")
 Steps.logout_session(client=self.client)
 
-Steps.register(
-    client=self.client,
-    username="driver",
-    password="StrongPass123",
-    password_confirm="StrongPass123",
-)
+Steps.register(client=self.client,
+               username="driver",
+               password="StrongPass123",
+               password_confirm="StrongPass123")
 Steps.login_user(client=self.client, username="driver", password="StrongPass123")
 Steps.logout_user(client=self.client)
 Steps.get_index(client=self.client)
@@ -196,16 +212,12 @@ Steps.get_game_screen(client=self.client, hopper_id=self.hopper.id)
 Steps.get_state(client=self.client, hopper_id=self.hopper.id)
 Steps.get_action(client=self.client, hopper_id=self.hopper.id)
 
-Steps.post_action(
-    client=self.client,
-    hopper_id=self.hopper.id,
-    action_type="basic_jump",
-)
-Steps.perform_action(
-    hopper_id=self.hopper.id,
-    user=self.user,
-    action_type="basic_jump",
-)
+Steps.post_action(client=self.client,
+                  hopper_id=self.hopper.id,
+                  action_type="basic_jump")
+Steps.perform_action(hopper_id=self.hopper.id,
+                     user=self.user,
+                     action_type="basic_jump")
 Steps.start_race(hopper_id=self.hopper.id, user=self.user)
 Steps.get_action_availability(hopper=self.hopper)
 ```
@@ -260,10 +272,8 @@ Steps.step(message="Создаём хоппера с массой 200 кг")
 ```python
 # Assert
 self.assertEqual(first=response.status_code, second=200)
-self.assertContains(
-    response=response,
-    text="Дистанция: 10,0",
-)
+self.assertContains(response=response,
+                    text="Дистанция: 10,0")
 
 updated_hopper = Steps.reload_hopper(hopper=self.hopper)
 self.assertEqual(first=updated_hopper.distance, second=10.0)
@@ -283,19 +293,15 @@ def test_basic_jump_success(self):
     """BE_P_6 Проверяет обычный прыжок на поверхности."""
     # Arrange
     Steps.step(message="Создаём хоппера для прыжка")
-    hopper = Steps.create_hopper(
-        user=self.user,
-        name="Крот-1",
-        mass_kg=200.0,
-    )
+    hopper = Steps.create_hopper(user=self.user,
+                                 name="Крот-1",
+                                 mass_kg=200.0)
 
     # Act
     Steps.step(message="Выполняем обычный прыжок")
-    updated_hopper = Steps.perform_action(
-        hopper_id=hopper.id,
-        user=self.user,
-        action_type="basic_jump",
-    )
+    updated_hopper = Steps.perform_action(hopper_id=hopper.id,
+                                          user=self.user,
+                                          action_type="basic_jump")
 
     # Assert
     Steps.step(message="Проверяем дистанцию, силу и рекорд")
@@ -310,6 +316,7 @@ def test_basic_jump_success(self):
 - [ ] Предусловия, шаги и ожидаемый результат внесены в `AT_TEST_CASES.md`.
 - [ ] Есть `# Arrange`, `# Act`, `# Assert`.
 - [ ] Все многоаргументные вызовы используют именованные аргументы.
+- [ ] Многострочные вызовы оформлены с первым аргументом после `(` и `)` сразу после последнего; `assertFormError()` сохраняет развёрнутый формат.
 - [ ] Переменные названы по-доменному.
 - [ ] Позитивные и негативные сценарии не смешаны.
 - [ ] Используется `Steps`, а не сырые вызовы инфраструктуры.
@@ -421,11 +428,9 @@ from apps.common.testing.ui.test_case import ServiceUserUiTestCase
 class HopperGameUiTest(ServiceUserUiTestCase):
     def setUp(self):
         super().setUp()
-        self.hopper = Steps.create_hopper(
-            user=self.service_user,
-            name=HopperData.DEFAULT_NAME,
-            mass_kg=HopperData.DEFAULT_MASS_KG,
-        )
+        self.hopper = Steps.create_hopper(user=self.service_user,
+                                          name=HopperData.DEFAULT_NAME,
+                                          mass_kg=HopperData.DEFAULT_MASS_KG)
 
     def test_basic_jump_from_game_screen(self):
         """UI_P_3 Проверяет обычный прыжок через игровой интерфейс."""
@@ -464,11 +469,9 @@ class RegistrationUiTest(PlaywrightLiveServerTestCase):
 
         # Act
         Steps.step(message="Регистрируем пользователя через форму")
-        self.ui.register(
-            username="ui-register",
-            password=Passwords.STRONG,
-            password_confirm=Passwords.STRONG,
-        )
+        self.ui.register(username="ui-register",
+                         password=Passwords.STRONG,
+                         password_confirm=Passwords.STRONG)
 
         # Assert
         Steps.step(message="Проверяем, что открылся дашборд")
