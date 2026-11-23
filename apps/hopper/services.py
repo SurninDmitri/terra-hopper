@@ -2,6 +2,7 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404
 from .models import Hopper
 from .domain.terra_hopper import TerraHopper
+from .domain.exceptions import UnknownActionError
 
 
 def start_race(hopper_id: int, user) -> Hopper:
@@ -123,7 +124,7 @@ def execute_hopper_action(hopper_id: int, user, action_type: str, use_reactor: b
         elif action_type == "drill_forward":
             domain_hopper.drill_forward()
         else:
-            raise ValueError(f"Неизвестное действие: {action_type}")
+            raise UnknownActionError(f"Неизвестное действие: {action_type}")
 
         hopper_orm.strength = domain_hopper.strength
         hopper_orm.reactor_energy = domain_hopper.reactor_energy

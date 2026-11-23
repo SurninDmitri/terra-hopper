@@ -1,12 +1,14 @@
 from django.contrib.auth.models import User
-from django.test import Client, TestCase
+from django.test import TestCase
 from django.urls import reverse
 
-from apps.common.testing.constants import HttpStatus, Passwords, Users
+from apps.common.testing.constants import HELLO_WORLD, HttpStatus, Passwords, Users
 from apps.common.testing.steps import Steps
 
 
 class AccountsViewTest(TestCase):
+    # region === Позитивные сценарии ===
+
     def test_register_success_sets_jwt_cookies_and_redirects(self):
         """BE_P_1 Проверяет успешную регистрацию и установку JWT-cookie."""
         # Arrange
@@ -33,16 +35,9 @@ class AccountsViewTest(TestCase):
         self.assertEqual(first=access_token["samesite"], second="Lax")
         self.assertTrue(refresh_token["httponly"])
 
-    def test_index_redirects_to_login_when_anonymous(self):
-        """BE_N_1 Проверяет редирект анонимного пользователя на страницу входа."""
-        # Act
-        Steps.step(message="Открываем главную страницу")
-        response = Steps.get_index(client=self.client)
+    # endregion
 
-        # Assert
-        Steps.step(message="Проверяем редирект на страницу входа")
-        self.assertRedirects(response=response,
-                             expected_url=reverse("login"))
+    # region === Негативные сценарии ===
 
     def test_register_password_mismatch_shows_error(self):
         """BE_N_2 Проверяет ошибку регистрации при несовпадении паролей."""
@@ -90,10 +85,13 @@ class AccountsViewTest(TestCase):
             errors=["Пользователь с таким именем уже существует."],
         )
 
+    # endregion
+
 
 class AccountsExistingUserViewTest(TestCase):
     @classmethod
     def setUpTestData(cls):
+        super().setUpTestData()
         cls.credentials = {
             "username": Users.ACCOUNT,
             "password": Passwords.STRONG,
@@ -101,8 +99,13 @@ class AccountsExistingUserViewTest(TestCase):
         Steps.step(message=f"Создаём пользователя {cls.credentials['username']}")
         Steps.create_user(**cls.credentials)
 
+    # region === Позитивные сценарии ===
+
     def test_login_success_sets_jwt_cookies_and_redirects(self):
         """BE_P_2 Проверяет успешный вход и установку JWT-cookie."""
+        # Arrange
+        Steps.step(message="Используем существующего пользователя без авторизации")
+
         # Act
         Steps.step(message=f"Входим под пользователем {self.credentials['username']}")
         response = Steps.login_user(client=self.client,
@@ -149,8 +152,15 @@ class AccountsExistingUserViewTest(TestCase):
         self.assertRedirects(response=response,
                              expected_url=reverse("hopper:dashboard"))
 
+    # endregion
+
+    # region === Негативные сценарии ===
+
     def test_login_wrong_password_shows_error(self):
         """BE_N_4 Проверяет ошибку входа при неверном пароле."""
+        # Arrange
+        Steps.step(message="Используем существующего пользователя без авторизации")
+
         # Act
         Steps.step(message="Пытаемся войти с неверным паролем")
         response = Steps.login_user(client=self.client,
@@ -170,18 +180,18 @@ class AccountsExistingUserViewTest(TestCase):
             ],
         )
 
+    # endregion
+
 
 class JWTMiddlewareTest(TestCase):
-    def setUp(self):
-        self.client = Client()
-        self.user = Steps.create_user(username=Users.ACCOUNT,
-                                      password=Passwords.STRONG)
+    # region === Позитивные сценарии ===
 
     def test_access_token_in_cookie_authenticates_request(self):
         """BE_P_5 Проверяет аутентификацию запроса по access_token в cookie."""
         # Arrange
-        Steps.step(message="Создаём access_token для пользователя")
-        access_token = Steps.create_access_token(user=self.user)
+        Steps.step(message="Создаём пользователя и access_token")
+        user = Steps.create_user(username=Users.ACCOUNT, password=Passwords.STRONG)
+        access_token = Steps.create_access_token(user=user)
 
         # Act
         Steps.step(message="Открываем главную страницу с токеном в cookie")
@@ -192,3 +202,39 @@ class JWTMiddlewareTest(TestCase):
         Steps.step(message="Проверяем редирект на дашборд")
         self.assertRedirects(response=response,
                              expected_url=reverse("hopper:dashboard"))
+
+    # endregion
+
+    # region === Негативные сценарии ===
+
+    def test_index_redirects_to_login_when_anonymous(self):
+        """BE_N_1 Проверяет редирект анонимного пользователя на страницу входа."""
+        # Arrange
+        Steps.step(message="Используем анонимный клиент без токена")
+
+        # Act
+        Steps.step(message="Открываем главную страницу без токена")
+        response = Steps.get_index(client=self.client)
+
+        # Assert
+        Steps.step(message="Проверяем редирект на страницу входа")
+        self.assertRedirects(response=response,
+                             expected_url=reverse("login"))
+
+    def test_invalid_access_token_redirects_to_login(self):
+        """BE_N_29 Проверяет редирект на вход при невалидном access_token."""
+        # Arrange
+        Steps.step(message="Используем анонимный клиент и невалидный токен")
+
+        # Act
+        Steps.step(message="Открываем главную страницу с невалидным токеном")
+        response = Steps.get_index(client=self.client,
+                                   HTTP_COOKIE=f"access_token={HELLO_WORLD}")
+
+        # Assert
+        Steps.step(message="Проверяем отсутствие авторизации и редирект на вход")
+        self.assertFalse(response.wsgi_request.user.is_authenticated)
+        self.assertRedirects(response=response,
+                             expected_url=reverse("login"))
+
+    # endregion

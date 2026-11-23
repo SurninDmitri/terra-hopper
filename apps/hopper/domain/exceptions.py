@@ -6,6 +6,10 @@ class NoTransportError(TerraHopperError):
     pass
 
 
+class UnknownActionError(TerraHopperError):
+    pass
+
+
 class InvalidLocationError(TerraHopperError):
     pass
 

@@ -10,17 +10,11 @@ from typing import Any, Callable
 
 from django.contrib.auth.models import User
 from django.http import HttpResponse
-from django.test import Client
+from django.test import Client, TestCase
 from django.urls import reverse
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.hopper.models import Hopper
-from apps.hopper.services import (
-    compute_action_availability,
-    create_hopper_for_user as create_hopper_service,
-    execute_hopper_action,
-    start_race as start_race_service,
-)
 
 
 _LOG_DIR = Path(__file__).resolve().parents[3] / "logs"
@@ -50,9 +44,7 @@ def _get_logger() -> logging.Logger:
 
     if not logger.handlers:
         handler = logging.FileHandler(filename=_LOG_DIR / log_name, encoding="utf-8")
-        handler.setFormatter(
-            logging.Formatter(fmt="%(asctime)s | %(message)s", datefmt="%H:%M:%S")
-        )
+        handler.setFormatter(logging.Formatter(fmt="%(asctime)s | %(message)s", datefmt="%H:%M:%S"))
         logger.addHandler(handler)
 
     _LOGGER = logger
@@ -74,14 +66,12 @@ def logged_method(method: Callable[..., Any]) -> Callable[..., Any]:
             result = method(*args, **kwargs)
         except Exception as error:
             duration = _format_duration(time.perf_counter() - started_at)
-            logger.info(
-                "%s%s -> FAILED [%s] %s: %s",
-                prefix,
-                method_name,
-                duration,
-                type(error).__name__,
-                error,
-            )
+            logger.info("%s%s -> FAILED [%s] %s: %s",
+                        prefix,
+                        method_name,
+                        duration,
+                        type(error).__name__,
+                        error)
             raise
         else:
             duration = _format_duration(time.perf_counter() - started_at)
@@ -142,10 +132,8 @@ class Steps:
     @staticmethod
     @logged_method
     def login_user(client: Client, username: str, password: str) -> HttpResponse:
-        return client.post(
-            path=reverse("login"),
-            data={"username": username, "password": password},
-        )
+        return client.post(path=reverse("login"),
+                           data={"username": username, "password": password})
 
     @staticmethod
     @logged_method
@@ -159,11 +147,9 @@ class Steps:
         headers: dict[str, str] | None = None,
         **extra: Any,
     ) -> HttpResponse:
-        return client.get(
-            path=reverse("index"),
-            headers=headers or {},
-            **extra,
-        )
+        return client.get(path=reverse("index"),
+                          headers=headers or {},
+                          **extra)
 
     @staticmethod
     @logged_method
@@ -181,12 +167,10 @@ class Steps:
             "best_distance": 0.0,
         }
         fields.update(overrides)
-        return Hopper(
-            user=user,
-            name=name,
-            mass_kg=mass_kg,
-            **fields,
-        )
+        return Hopper(user=user,
+                      name=name,
+                      mass_kg=mass_kg,
+                      **fields)
 
     @staticmethod
     @logged_method
@@ -196,12 +180,10 @@ class Steps:
         mass_kg: float,
         **overrides: Any,
     ) -> Hopper:
-        hopper = Steps.build_hopper(
-            user=user,
-            name=name,
-            mass_kg=mass_kg,
-            **overrides,
-        )
+        hopper = Steps.build_hopper(user=user,
+                                    name=name,
+                                    mass_kg=mass_kg,
+                                    **overrides)
         hopper.save()
         return hopper
 
@@ -210,11 +192,6 @@ class Steps:
     def save_hopper(hopper: Hopper) -> Hopper:
         hopper.save()
         return hopper
-
-    @staticmethod
-    @logged_method
-    def create_hopper_for_user(user: User, name: str, mass_kg: float) -> Hopper:
-        return create_hopper_service(user=user, name=name, mass_kg=mass_kg)
 
     @staticmethod
     @logged_method
@@ -232,15 +209,56 @@ class Steps:
 
     @staticmethod
     @logged_method
+    def assert_hopper_state(test_case: TestCase,
+                            hopper: Hopper,
+                            *,
+                            expected_name: str | None = None,
+                            expected_mass_kg: float | None = None,
+                            expected_distance: float | None = None,
+                            expected_strength: float | None = None,
+                            expected_reactor_energy: float | None = None,
+                            expected_best_distance: float | None = None,
+                            expected_location_state: str | None = None) -> None:
+        """Перечитывает хоппера из БД и проверяет только переданные ожидания."""
+        updated_hopper = Steps.reload_hopper(hopper=hopper)
+        if expected_name is not None:
+            test_case.assertEqual(first=updated_hopper.name,
+                                  second=expected_name,
+                                  msg="Неверное имя хоппера в БД")
+        if expected_mass_kg is not None:
+            test_case.assertEqual(first=updated_hopper.mass_kg,
+                                  second=expected_mass_kg,
+                                  msg="Неверная масса хоппера в БД")
+        if expected_distance is not None:
+            test_case.assertEqual(first=updated_hopper.distance,
+                                  second=expected_distance,
+                                  msg="Неверная дистанция хоппера в БД")
+        if expected_strength is not None:
+            test_case.assertEqual(first=updated_hopper.strength,
+                                  second=expected_strength,
+                                  msg="Неверная сила хоппера в БД")
+        if expected_reactor_energy is not None:
+            test_case.assertEqual(first=updated_hopper.reactor_energy,
+                                  second=expected_reactor_energy,
+                                  msg="Неверная энергия реактора хоппера в БД")
+        if expected_best_distance is not None:
+            test_case.assertEqual(first=updated_hopper.best_distance,
+                                  second=expected_best_distance,
+                                  msg="Неверный рекорд хоппера в БД")
+        if expected_location_state is not None:
+            test_case.assertEqual(first=updated_hopper.location_state,
+                                  second=expected_location_state,
+                                  msg="Неверное положение хоппера в БД")
+
+    @staticmethod
+    @logged_method
     def create_hopper_via_endpoint(
         client: Client,
         name: str,
         mass_kg: float | str,
     ) -> HttpResponse:
-        return client.post(
-            path=reverse("hopper:create_hopper"),
-            data={"name": name, "mass_kg": mass_kg},
-        )
+        return client.post(path=reverse("hopper:create_hopper"),
+                           data={"name": name, "mass_kg": mass_kg})
 
     @staticmethod
     @logged_method
@@ -278,33 +296,19 @@ class Steps:
         if source is not None:
             payload["source"] = source
 
-        return client.post(
-            path=reverse("hopper:action", args=[hopper_id]),
-            data=payload,
-            headers=headers or {},
-        )
+        return client.post(path=reverse("hopper:action", args=[hopper_id]),
+                           data=payload,
+                           headers=headers or {})
 
     @staticmethod
     @logged_method
-    def perform_action(
-        hopper_id: int,
-        user: User,
-        action_type: str,
-        use_reactor: bool = False,
-    ) -> Hopper:
-        return execute_hopper_action(
-            hopper_id=hopper_id,
-            user=user,
-            action_type=action_type,
-            use_reactor=use_reactor,
-        )
-
-    @staticmethod
-    @logged_method
-    def start_race(hopper_id: int, user: User) -> Hopper:
-        return start_race_service(hopper_id=hopper_id, user=user)
-
-    @staticmethod
-    @logged_method
-    def get_action_availability(hopper: Hopper) -> dict[str, bool]:
-        return compute_action_availability(hopper=hopper)
+    def post_game_action(client: Client,
+                         hopper_id: int,
+                         action_type: str,
+                         use_reactor: bool = False) -> HttpResponse:
+        return Steps.post_action(client=client,
+                                 hopper_id=hopper_id,
+                                 action_type=action_type,
+                                 use_reactor=use_reactor,
+                                 source="game",
+                                 headers={"HX-Request": "true"})

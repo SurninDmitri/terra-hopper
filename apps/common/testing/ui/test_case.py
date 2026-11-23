@@ -6,7 +6,7 @@ from django.contrib.staticfiles.testing import StaticLiveServerTestCase
 from playwright.sync_api import Browser, BrowserContext, Page, Playwright
 from playwright.sync_api import sync_playwright
 
-from apps.common.testing.constants import ServiceAccount
+from apps.common.testing.constants import HopperData, ServiceAccount
 from apps.common.testing.steps import Steps
 from apps.common.testing.ui.steps import StepsUI
 
@@ -53,10 +53,8 @@ class PlaywrightLiveServerTestCase(StaticLiveServerTestCase):
         os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
         cls.playwright = sync_playwright().start()
         cls.addClassCleanup(cls.playwright.stop)
-        cls.browser = cls.playwright.chromium.launch(
-            headless=cls.headless,
-            slow_mo=cls.slow_mo,
-        )
+        cls.browser = cls.playwright.chromium.launch(headless=cls.headless,
+                                                     slow_mo=cls.slow_mo)
         cls.addClassCleanup(cls.browser.close)
 
     @classmethod
@@ -68,16 +66,12 @@ class PlaywrightLiveServerTestCase(StaticLiveServerTestCase):
 
     def setUp(self):
         super().setUp()
-        self.context = self.browser.new_context(
-            base_url=self.live_server_url,
-            viewport=self.viewport,
-        )
+        self.context = self.browser.new_context(base_url=self.live_server_url,
+                                                viewport=self.viewport)
         self.page = self.context.new_page()
         self.page.set_default_timeout(7000)
-        self.ui = StepsUI(
-            page=self.page,
-            base_url=self.live_server_url,
-        )
+        self.ui = StepsUI(page=self.page,
+                          base_url=self.live_server_url)
 
     def tearDown(self):
         self.context.close()
@@ -93,14 +87,29 @@ class ServiceUserUiTestCase(PlaywrightLiveServerTestCase):
 
     def setUp(self):
         super().setUp()
-        self.service_user = Steps.create_user(
-            username=ServiceAccount.USERNAME,
-            password=ServiceAccount.PASSWORD,
-        )
+        Steps.step(message="Создаём сервисного пользователя для UI-теста")
+        self.service_user = Steps.create_user(username=ServiceAccount.USERNAME,
+                                              password=ServiceAccount.PASSWORD)
 
     def login_as_service_user(self) -> None:
         """Авторизует сервисную учётку через форму входа."""
-        self.ui.login(
-            username=ServiceAccount.USERNAME,
-            password=ServiceAccount.PASSWORD,
-        )
+        self.ui.login(username=ServiceAccount.USERNAME,
+                      password=ServiceAccount.PASSWORD)
+
+
+class HopperGameUiTestCase(ServiceUserUiTestCase):
+    """UI-тест с авторизованным пользователем и запущенным заездом."""
+
+    hopper_name = HopperData.DEFAULT_NAME
+    hopper_mass_kg = HopperData.DEFAULT_MASS_KG
+
+    def setUp(self):
+        super().setUp()
+        Steps.step(message="Создаём хоппера для игрового UI-теста")
+        self.hopper = Steps.create_hopper(user=self.service_user,
+                                          name=self.hopper_name,
+                                          mass_kg=self.hopper_mass_kg)
+        Steps.step(message="Авторизуемся через форму входа")
+        self.login_as_service_user()
+        Steps.step(message="Запускаем заезд с дашборда")
+        self.ui.start_race(hopper_name=self.hopper.name)

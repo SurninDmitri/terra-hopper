@@ -1,32 +1,11 @@
-from django.test import Client, TestCase
 from django.urls import reverse
 
-from apps.common.testing.constants import HopperData, HttpStatus, Passwords, Users
+from apps.common.testing.cases import AuthenticatedHopperTestCase, HopperTestCase
+from apps.common.testing.constants import HopperData, HttpStatus, Passwords
 from apps.common.testing.steps import Steps
 
 
-class HopperGameScreenTest(TestCase):
-    def setUp(self):
-        self.user = Steps.create_user(
-            username=Users.TEST_DRIVER,
-            password=Passwords.DEFAULT,
-        )
-        self.other_user = Steps.create_user(
-            username="other",
-            password=Passwords.DEFAULT,
-        )
-        self.hopper = Steps.create_hopper(
-            user=self.user,
-            name=HopperData.DEFAULT_NAME,
-            mass_kg=HopperData.DEFAULT_MASS_KG,
-        )
-        self.client = Client()
-        Steps.login(
-            client=self.client,
-            username=Users.TEST_DRIVER,
-            password=Passwords.DEFAULT,
-        )
-
+class HopperGameScreenTest(AuthenticatedHopperTestCase):
     # region === Позитивные сценарии ===
 
     def test_game_screen_renders(self):
@@ -36,44 +15,105 @@ class HopperGameScreenTest(TestCase):
 
         # Act
         Steps.step(message="Открываем игровой экран")
-        response = Steps.get_game_screen(
-            client=self.client,
-            hopper_id=self.hopper.id,
-        )
+        response = Steps.get_game_screen(client=self.client,
+                                         hopper_id=self.hopper.id)
 
         # Assert
         Steps.step(message="Проверяем шаблон и элементы интерфейса")
         self.assertEqual(first=response.status_code, second=HttpStatus.OK)
-        self.assertTemplateUsed(
-            response=response,
-            template_name="hopper/game.html",
-        )
+        self.assertTemplateUsed(response=response,
+                                template_name="hopper/game.html")
         self.assertContains(response=response, text=self.hopper.name)
         self.assertContains(response=response, text="Назад в гараж")
         self.assertContains(response=response, text="Подземелье")
         self.assertContains(response=response, text="Обычный прыжок (+10м)")
 
     def test_state_api_returns_json(self):
-        """BE_P_14 Проверяет JSON-ответ API состояния хоппера."""
+        """BE_P_14 Проверяет состояние в API и БД после каждого действия."""
         # Arrange
-        Steps.step(message="Готовим запрос состояния хоппера")
-
-        # Act
-        Steps.step(message="Запрашиваем состояние через API")
-        response = Steps.get_state(
-            client=self.client,
-            hopper_id=self.hopper.id,
+        Steps.step(message="Готовим рассчитанные вручную состояния хоппера массой 200 кг")
+        initial_state = {
+            "id": self.hopper.id,
+            "name": HopperData.DEFAULT_NAME,
+            "distance": 0.0,
+            "best_distance": 0.0,
+            "strength": 100.0,
+            "reactor_energy": 100.0,
+            "location_state": "surface",
+        }
+        expected_states = (
+            # Погружение тратит 6 силы: 100 - 6 = 94.
+            ("go_underground", {
+                "distance": 0.0,
+                "best_distance": 0.0,
+                "strength": 94.0,
+                "reactor_energy": 100.0,
+                "location_state": "underground",
+            }),
+            # Бурение даёт 40 м, тратит 16 силы и 50 энергии: 94 - 16 = 78.
+            ("drill_forward", {
+                "distance": 40.0,
+                "best_distance": 40.0,
+                "strength": 78.0,
+                "reactor_energy": 50.0,
+                "location_state": "underground",
+            }),
+            # Подъём тратит ещё 6 силы: 78 - 6 = 72, дистанция сохраняется.
+            ("return_to_surface", {
+                "distance": 40.0,
+                "best_distance": 40.0,
+                "strength": 72.0,
+                "reactor_energy": 50.0,
+                "location_state": "surface",
+            }),
         )
 
-        # Assert
-        Steps.step(message="Проверяем поля JSON")
-        self.assertEqual(first=response.status_code, second=HttpStatus.OK)
+        # Act
+        Steps.step(message="Запрашиваем исходное состояние через API")
+        response = Steps.get_state(client=self.client,
+                                   hopper_id=self.hopper.id)
 
-        state = response.json()
-        self.assertEqual(first=state["name"], second=HopperData.DEFAULT_NAME)
-        self.assertEqual(first=state["distance"], second=0.0)
-        self.assertEqual(first=state["best_distance"], second=0.0)
-        self.assertEqual(first=state["location_state"], second="surface")
+        # Assert
+        Steps.step(message="Проверяем исходное состояние в API и БД")
+        self.assertEqual(first=response.status_code, second=HttpStatus.OK)
+        self.assertEqual(first=response.json(), second=initial_state)
+        Steps.assert_hopper_state(test_case=self,
+                                  hopper=self.hopper,
+                                  expected_name=HopperData.DEFAULT_NAME,
+                                  expected_distance=0.0,
+                                  expected_strength=100.0,
+                                  expected_reactor_energy=100.0,
+                                  expected_best_distance=0.0,
+                                  expected_location_state="surface")
+
+        for action_type, expected_state in expected_states:
+            with self.subTest(action_type=action_type):
+                # Act
+                Steps.step(message=f"Выполняем {action_type} и запрашиваем состояние")
+                action_response = Steps.post_game_action(client=self.client,
+                                                         hopper_id=self.hopper.id,
+                                                         action_type=action_type)
+                state_response = Steps.get_state(client=self.client,
+                                                 hopper_id=self.hopper.id)
+
+                # Assert
+                Steps.step(message="Сверяем API и БД с рассчитанным состоянием")
+                self.assertEqual(first=action_response.status_code, second=HttpStatus.OK)
+                self.assertEqual(first=state_response.status_code, second=HttpStatus.OK)
+                expected_payload = {
+                    "id": self.hopper.id,
+                    "name": HopperData.DEFAULT_NAME,
+                    **expected_state,
+                }
+                self.assertEqual(first=state_response.json(), second=expected_payload)
+                Steps.assert_hopper_state(test_case=self,
+                                          hopper=self.hopper,
+                                          expected_name=HopperData.DEFAULT_NAME,
+                                          expected_distance=expected_state["distance"],
+                                          expected_strength=expected_state["strength"],
+                                          expected_reactor_energy=expected_state["reactor_energy"],
+                                          expected_best_distance=expected_state["best_distance"],
+                                          expected_location_state=expected_state["location_state"])
 
     def test_dashboard_card_has_no_action_buttons(self):
         """BE_P_15 Проверяет отсутствие игровых кнопок на карточке дашборда."""
@@ -95,72 +135,45 @@ class HopperGameScreenTest(TestCase):
         """BE_P_16 Проверяет сброс заезда при открытии игрового экрана."""
         # Arrange
         Steps.step(message="Заполняем хоппера накопленными значениями")
-        Steps.update_hopper(
-            hopper=self.hopper,
-            distance=120.0,
-            strength=40.0,
-            reactor_energy=30.0,
-            location_state="underground",
-            best_distance=130.0,
-        )
+        Steps.update_hopper(hopper=self.hopper,
+                            distance=120.0,
+                            strength=40.0,
+                            reactor_energy=30.0,
+                            location_state="underground",
+                            best_distance=130.0)
 
         # Act
         Steps.step(message="Открываем игровой экран для старта заезда")
-        response = Steps.get_game_screen(
-            client=self.client,
-            hopper_id=self.hopper.id,
-        )
+        response = Steps.get_game_screen(client=self.client,
+                                         hopper_id=self.hopper.id)
 
         # Assert
         Steps.step(message="Проверяем сброс ресурсов и сохранение рекорда")
         self.assertEqual(first=response.status_code, second=HttpStatus.OK)
 
-        updated_hopper = Steps.reload_hopper(hopper=self.hopper)
-        self.assertEqual(first=updated_hopper.distance, second=0.0)
-        self.assertEqual(first=updated_hopper.strength, second=100.0)
-        self.assertEqual(first=updated_hopper.reactor_energy, second=100.0)
-        self.assertEqual(first=updated_hopper.location_state, second="surface")
-        self.assertEqual(first=updated_hopper.best_distance, second=130.0)
-
-    def test_start_race_service(self):
-        """BE_P_17 Проверяет сброс заезда через сервис start_race."""
-        # Arrange
-        Steps.step(message="Готовим хоппера перед стартом заезда")
-        Steps.update_hopper(
-            hopper=self.hopper,
-            distance=55.0,
-            strength=10.0,
-            best_distance=55.0,
-        )
-
-        # Act
-        Steps.step(message="Запускаем заезд через сервис")
-        started_hopper = Steps.start_race(
-            hopper_id=self.hopper.id,
-            user=self.user,
-        )
-
-        # Assert
-        Steps.step(message="Проверяем сброс дистанции и сохранение рекорда")
-        self.assertEqual(first=started_hopper.distance, second=0.0)
-        self.assertEqual(first=started_hopper.best_distance, second=55.0)
+        Steps.assert_hopper_state(test_case=self,
+                                  hopper=self.hopper,
+                                  expected_distance=0.0,
+                                  expected_strength=100.0,
+                                  expected_reactor_energy=100.0,
+                                  expected_location_state="surface",
+                                  expected_best_distance=130.0)
 
     # endregion
 
+
+class HopperGameAccessTest(HopperTestCase):
     # region === Негативные сценарии ===
 
     def test_game_screen_requires_login(self):
         """BE_N_16 Проверяет редирект на вход для неавторизованного пользователя."""
         # Arrange
-        Steps.step(message="Выполняем выход из системы")
-        Steps.logout_session(client=self.client)
+        Steps.step(message="Используем анонимный клиент")
 
         # Act
         Steps.step(message="Пытаемся открыть игровой экран анонимно")
-        response = Steps.get_game_screen(
-            client=self.client,
-            hopper_id=self.hopper.id,
-        )
+        response = Steps.get_game_screen(client=self.client,
+                                         hopper_id=self.hopper.id)
 
         # Assert
         Steps.step(message="Проверяем редирект на вход")
@@ -170,19 +183,16 @@ class HopperGameScreenTest(TestCase):
     def test_game_screen_forbidden_for_other_user(self):
         """BE_N_17 Проверяет запрет доступа к чужому игровому экрану."""
         # Arrange
-        Steps.step(message="Авторизуемся под другим пользователем")
-        Steps.login(
-            client=self.client,
-            username="other",
-            password=Passwords.DEFAULT,
-        )
+        Steps.step(message="Создаём другого пользователя и авторизуемся")
+        other_user = Steps.create_user(username="other", password=Passwords.DEFAULT)
+        Steps.login(client=self.client,
+                    username=other_user.username,
+                    password=Passwords.DEFAULT)
 
         # Act
         Steps.step(message="Пытаемся открыть чужой игровой экран")
-        response = Steps.get_game_screen(
-            client=self.client,
-            hopper_id=self.hopper.id,
-        )
+        response = Steps.get_game_screen(client=self.client,
+                                         hopper_id=self.hopper.id)
 
         # Assert
         Steps.step(message="Проверяем статус 404")
@@ -191,17 +201,8 @@ class HopperGameScreenTest(TestCase):
     # endregion
 
 
-class HopperActionAvailabilityTest(TestCase):
-    def setUp(self):
-        self.user = Steps.create_user(
-            username=Users.TEST_DRIVER,
-            password=Passwords.DEFAULT,
-        )
-        self.hopper = Steps.create_hopper(
-            user=self.user,
-            name=HopperData.DEFAULT_NAME,
-            mass_kg=400.0,
-        )
+class HopperActionAvailabilityViewTest(AuthenticatedHopperTestCase):
+    hopper_mass_kg = 400.0
 
     # region === Позитивные сценарии ===
 
@@ -211,11 +212,14 @@ class HopperActionAvailabilityTest(TestCase):
         Steps.step(message="Готовим нового хоппера на поверхности")
 
         # Act
-        Steps.step(message="Вычисляем доступность действий")
-        allowed = Steps.get_action_availability(hopper=self.hopper)
+        Steps.step(message="Получаем доступность действий из ответа игрового экрана")
+        response = Steps.get_game_screen(client=self.client,
+                                         hopper_id=self.hopper.id)
 
         # Assert
         Steps.step(message="Проверяем флаги доступности")
+        self.assertEqual(first=response.status_code, second=HttpStatus.OK)
+        allowed = response.context["allowed"]
         self.assertTrue(allowed["basic_jump"])
         self.assertTrue(allowed["long_jump"])
         self.assertTrue(allowed["long_reactor"])
@@ -230,18 +234,18 @@ class HopperActionAvailabilityTest(TestCase):
     def test_blocked_by_location(self):
         """BE_N_18 Проверяет блокировку действий из-за положения под землёй."""
         # Arrange
-        Steps.step(message="Переводим хоппера под землю")
-        Steps.update_hopper(
-            hopper=self.hopper,
-            location_state="underground",
-        )
+        Steps.step(message="Готовим хоппера к погружению")
 
         # Act
-        Steps.step(message="Вычисляем доступность действий")
-        allowed = Steps.get_action_availability(hopper=self.hopper)
+        Steps.step(message="Получаем доступность действий из ответа игрового экрана")
+        response = Steps.post_game_action(client=self.client,
+                                          hopper_id=self.hopper.id,
+                                          action_type="go_underground")
 
         # Assert
         Steps.step(message="Проверяем блокировку по положению")
+        self.assertEqual(first=response.status_code, second=HttpStatus.OK)
+        allowed = response.context["allowed"]
         self.assertFalse(allowed["basic_jump"])
         self.assertFalse(allowed["long_jump"])
         self.assertFalse(allowed["long_reactor"])
@@ -252,18 +256,20 @@ class HopperActionAvailabilityTest(TestCase):
     def test_blocked_by_strength(self):
         """BE_N_19 Проверяет блокировку действий из-за недостатка силы."""
         # Arrange
-        Steps.step(message="Снижаем силу хоппера до 12")
-        Steps.update_hopper(
-            hopper=self.hopper,
-            strength=12.0,
-        )
+        Steps.step(message="Готовим силу 19: после обычного прыжка останется 12")
+        Steps.update_hopper(hopper=self.hopper,
+                            strength=19.0)
 
         # Act
-        Steps.step(message="Вычисляем доступность действий")
-        allowed = Steps.get_action_availability(hopper=self.hopper)
+        Steps.step(message="Получаем доступность действий из ответа игрового экрана")
+        response = Steps.post_game_action(client=self.client,
+                                          hopper_id=self.hopper.id,
+                                          action_type="basic_jump")
 
         # Assert
         Steps.step(message="Проверяем блокировку по силе")
+        self.assertEqual(first=response.status_code, second=HttpStatus.OK)
+        allowed = response.context["allowed"]
         self.assertTrue(allowed["basic_jump"])
         self.assertFalse(allowed["long_jump"])
         self.assertFalse(allowed["long_reactor"])
@@ -273,96 +279,46 @@ class HopperActionAvailabilityTest(TestCase):
         """BE_N_20 Проверяет блокировку форсажа из-за недостатка энергии."""
         # Arrange
         Steps.step(message="Снижаем энергию реактора до 40")
-        Steps.update_hopper(
-            hopper=self.hopper,
-            reactor_energy=40.0,
-        )
+        Steps.update_hopper(hopper=self.hopper,
+                            reactor_energy=40.0)
 
         # Act
-        Steps.step(message="Вычисляем доступность действий")
-        allowed = Steps.get_action_availability(hopper=self.hopper)
+        Steps.step(message="Получаем доступность действий из ответа игрового экрана")
+        response = Steps.post_game_action(client=self.client,
+                                          hopper_id=self.hopper.id,
+                                          action_type="basic_jump")
 
         # Assert
         Steps.step(message="Проверяем блокировку форсажа")
+        self.assertEqual(first=response.status_code, second=HttpStatus.OK)
+        allowed = response.context["allowed"]
         self.assertTrue(allowed["long_jump"])
         self.assertFalse(allowed["long_reactor"])
 
     def test_drill_blocked_by_energy_underground(self):
         """BE_N_21 Проверяет блокировку бурения из-за недостатка энергии."""
         # Arrange
-        Steps.step(message="Готовим хоппера под землёй с энергией 40")
-        Steps.update_hopper(
-            hopper=self.hopper,
-            location_state="underground",
-            reactor_energy=40.0,
-        )
+        Steps.step(message="Готовим хоппера к погружению с энергией 40")
+        Steps.update_hopper(hopper=self.hopper,
+                            reactor_energy=40.0)
 
         # Act
-        Steps.step(message="Вычисляем доступность действий")
-        allowed = Steps.get_action_availability(hopper=self.hopper)
+        Steps.step(message="Получаем доступность действий из ответа игрового экрана")
+        response = Steps.post_game_action(client=self.client,
+                                          hopper_id=self.hopper.id,
+                                          action_type="go_underground")
 
         # Assert
         Steps.step(message="Проверяем блокировку бурения")
+        self.assertEqual(first=response.status_code, second=HttpStatus.OK)
+        allowed = response.context["allowed"]
         self.assertFalse(allowed["drill_forward"])
 
     # endregion
 
 
-class HopperGameActionTest(TestCase):
-    def setUp(self):
-        self.user = Steps.create_user(
-            username=Users.TEST_DRIVER,
-            password=Passwords.DEFAULT,
-        )
-        self.hopper = Steps.create_hopper(
-            user=self.user,
-            name=HopperData.DEFAULT_NAME,
-            mass_kg=HopperData.DEFAULT_MASS_KG,
-        )
-        self.client = Client()
-        Steps.login(
-            client=self.client,
-            username=Users.TEST_DRIVER,
-            password=Passwords.DEFAULT,
-        )
-
-    def _post_game_action(self, action_type: str, **kwargs):
-        return Steps.post_action(
-            client=self.client,
-            hopper_id=self.hopper.id,
-            action_type=action_type,
-            source="game",
-            headers={"HX-Request": "true"},
-            **kwargs,
-        )
-
+class HopperGameActionTest(AuthenticatedHopperTestCase):
     # region === Позитивные сценарии ===
-
-    def test_game_action_success_returns_panel_and_update_map(self):
-        """BE_P_19 Проверяет успешный HTMX-ответ на действие с обновлением карты."""
-        # Arrange
-        Steps.step(message="Готовим действие basic_jump из игры")
-
-        # Act
-        Steps.step(message="Выполняем действие из игрового экрана")
-        response = self._post_game_action(action_type="basic_jump")
-
-        # Assert
-        Steps.step(message="Проверяем панель, карту и состояние хоппера")
-        self.assertEqual(first=response.status_code, second=HttpStatus.OK)
-        self.assertTemplateUsed(
-            response=response,
-            template_name="hopper/partials/game_panel.html",
-        )
-        self.assertContains(response=response, text="Дистанция: 10,0")
-
-        trigger = response.headers.get("HX-Trigger")
-        self.assertIsNotNone(trigger)
-        self.assertIn(member="updateMap", container=trigger)
-        self.assertIn(member='"distance": 10.0', container=trigger)
-
-        updated_hopper = Steps.reload_hopper(hopper=self.hopper)
-        self.assertEqual(first=updated_hopper.distance, second=10.0)
 
     def test_panel_keeps_id_after_swap_for_chained_actions(self):
         """BE_P_20 Проверяет сохранение id панели после нескольких действий подряд."""
@@ -371,10 +327,14 @@ class HopperGameActionTest(TestCase):
 
         # Act
         Steps.step(message="Выполняем первый прыжок")
-        first_response = self._post_game_action(action_type="basic_jump")
+        first_response = Steps.post_game_action(client=self.client,
+                                                hopper_id=self.hopper.id,
+                                                action_type="basic_jump")
 
         Steps.step(message="Выполняем второй прыжок")
-        second_response = self._post_game_action(action_type="basic_jump")
+        second_response = Steps.post_game_action(client=self.client,
+                                                 hopper_id=self.hopper.id,
+                                                 action_type="basic_jump")
 
         # Assert
         Steps.step(message="Проверяем id панели и итоговую дистанцию")
@@ -384,8 +344,38 @@ class HopperGameActionTest(TestCase):
         self.assertEqual(first=second_response.status_code, second=HttpStatus.OK)
         self.assertContains(response=second_response, text="Дистанция: 20,0")
 
-        updated_hopper = Steps.reload_hopper(hopper=self.hopper)
-        self.assertEqual(first=updated_hopper.distance, second=20.0)
+        Steps.assert_hopper_state(test_case=self,
+                                  hopper=self.hopper,
+                                  expected_distance=20.0)
+
+    def test_disabled_buttons_render_with_not_allowed_style(self):
+        """BE_P_22 Проверяет отрисовку недоступных кнопок после подъёма."""
+        # Arrange
+        Steps.step(message="Готовим хоппера под землёй с энергией 30")
+        Steps.update_hopper(hopper=self.hopper,
+                            location_state="underground",
+                            reactor_energy=30.0)
+
+        # Act
+        Steps.step(message="Возвращаемся на поверхность")
+        response = Steps.post_game_action(client=self.client,
+                                          hopper_id=self.hopper.id,
+                                          action_type="return_to_surface")
+
+        # Assert
+        Steps.step(message="Проверяем стили активных и заблокированных кнопок")
+        self.assertEqual(first=response.status_code, second=HttpStatus.OK)
+        self.assertContains(response=response, text="Дистанция: 0,0")
+        self.assertNotContains(response=response,
+                               text="bg-emerald-600 hover:bg-emerald-700")
+        self.assertNotContains(response=response,
+                               text="bg-stone-700 hover:bg-stone-800")
+        self.assertContains(response=response,
+                            text="opacity-50 cursor-not-allowed")
+
+    # endregion
+
+    # region === Негативные сценарии ===
 
     def test_reactor_button_disabled_after_energy_spent(self):
         """BE_N_22 Проверяет блокировку форсажа после полного расхода энергии."""
@@ -394,165 +384,38 @@ class HopperGameActionTest(TestCase):
 
         # Act
         Steps.step(message="Выполняем первый форсаж")
-        self._post_game_action(
-            action_type="long_jump",
-            use_reactor=True,
-        )
+        Steps.post_game_action(client=self.client,
+                               hopper_id=self.hopper.id,
+                               action_type="long_jump",
+                               use_reactor=True)
 
         Steps.step(message="Выполняем второй форсаж")
-        second_response = self._post_game_action(
-            action_type="long_jump",
-            use_reactor=True,
-        )
+        second_response = Steps.post_game_action(client=self.client,
+                                                 hopper_id=self.hopper.id,
+                                                 action_type="long_jump",
+                                                 use_reactor=True)
 
         Steps.step(message="Пытаемся выполнить третий форсаж")
-        third_response = self._post_game_action(
-            action_type="long_jump",
-            use_reactor=True,
-        )
+        third_response = Steps.post_game_action(client=self.client,
+                                                hopper_id=self.hopper.id,
+                                                action_type="long_jump",
+                                                use_reactor=True)
 
         # Assert
         Steps.step(message="Проверяем энергию и состояние кнопки")
         self.assertEqual(first=second_response.status_code, second=HttpStatus.OK)
 
-        updated_hopper = Steps.reload_hopper(hopper=self.hopper)
-        self.assertEqual(first=updated_hopper.reactor_energy, second=0.0)
+        Steps.assert_hopper_state(test_case=self,
+                                  hopper=self.hopper,
+                                  expected_reactor_energy=0.0)
 
-        self.assertContains(
-            response=second_response,
-            text="Форсаж реактора (+45м)",
-        )
-        self.assertNotContains(
-            response=second_response,
-            text="bg-fuchsia-600 hover:bg-fuchsia-700",
-        )
-        self.assertContains(
-            response=second_response,
-            text="bg-fuchsia-600 opacity-50 cursor-not-allowed",
-        )
-        self.assertEqual(
-            first=third_response.status_code,
-            second=HttpStatus.BAD_REQUEST,
-        )
-
-    def test_underground_flow_updates_location(self):
-        """BE_P_21 Проверяет переход под землю из игрового экрана."""
-        # Arrange
-        Steps.step(message="Готовим переход под землю")
-
-        # Act
-        Steps.step(message="Выполняем погружение")
-        response = self._post_game_action(action_type="go_underground")
-
-        # Assert
-        Steps.step(message="Проверяем панель и обновление положения")
-        self.assertEqual(first=response.status_code, second=HttpStatus.OK)
-        self.assertContains(response=response, text="Выйти на поверхность")
-
-        trigger = response.headers.get("HX-Trigger")
-        self.assertIn(member='"location_state": "underground"', container=trigger)
-
-        updated_hopper = Steps.reload_hopper(hopper=self.hopper)
-        self.assertEqual(first=updated_hopper.location_state, second="underground")
-
-    def test_disabled_buttons_render_with_not_allowed_style(self):
-        """BE_P_22 Проверяет отрисовку недоступных кнопок после подъёма."""
-        # Arrange
-        Steps.step(message="Готовим хоппера под землёй с энергией 30")
-        Steps.update_hopper(
-            hopper=self.hopper,
-            location_state="underground",
-            reactor_energy=30.0,
-        )
-
-        # Act
-        Steps.step(message="Возвращаемся на поверхность")
-        response = self._post_game_action(action_type="return_to_surface")
-
-        # Assert
-        Steps.step(message="Проверяем стили активных и заблокированных кнопок")
-        self.assertEqual(first=response.status_code, second=HttpStatus.OK)
-        self.assertContains(response=response, text="Дистанция: 0,0")
-        self.assertNotContains(
-            response=response,
-            text="bg-emerald-600 hover:bg-emerald-700",
-        )
-        self.assertNotContains(
-            response=response,
-            text="bg-stone-700 hover:bg-stone-800",
-        )
-        self.assertContains(
-            response=response,
-            text="opacity-50 cursor-not-allowed",
-        )
-
-    # endregion
-
-    # region === Негативные сценарии ===
-
-    def test_game_action_error_returns_toast_with_retarget(self):
-        """BE_N_23 Проверяет HTMX-ошибку из игрового экрана в виде toast."""
-        # Arrange
-        Steps.step(message="Готовим недопустимое бурение из игры")
-
-        # Act
-        Steps.step(message="Пытаемся бурить на поверхности")
-        response = self._post_game_action(action_type="drill_forward")
-
-        # Assert
-        Steps.step(message="Проверяем toast и отсутствие изменений")
-        self.assertEqual(first=response.status_code, second=HttpStatus.BAD_REQUEST)
-        self.assertTemplateUsed(
-            response=response,
-            template_name="hopper/partials/toast.html",
-        )
-        self.assertContains(
-            response=response,
-            text=(
-                "Подземное бурение невозможно на поверхности. "
-                "Сначала погрузитесь."
-            ),
-            status_code=HttpStatus.BAD_REQUEST,
-        )
-        self.assertEqual(
-            first=response.headers.get("HX-Retarget"),
-            second="#game-toast-wrap",
-        )
-        self.assertEqual(
-            first=response.headers.get("HX-Reswap"),
-            second="innerHTML",
-        )
-
-        updated_hopper = Steps.reload_hopper(hopper=self.hopper)
-        self.assertEqual(first=updated_hopper.distance, second=0.0)
-
-    def test_dashboard_action_error_keeps_card_retarget(self):
-        """BE_N_24 Проверяет HTMX-ошибку действия с дашборда."""
-        # Arrange
-        Steps.step(message="Готовим недопустимое действие с дашборда")
-
-        # Act
-        Steps.step(message="Выполняем действие с дашборда")
-        response = Steps.post_action(
-            client=self.client,
-            hopper_id=self.hopper.id,
-            action_type="drill_forward",
-            headers={"HX-Request": "true"},
-        )
-
-        # Assert
-        Steps.step(message="Проверяем шаблон ошибки и retarget")
-        self.assertEqual(first=response.status_code, second=HttpStatus.BAD_REQUEST)
-        self.assertTemplateUsed(
-            response=response,
-            template_name="hopper/partials/action_error.html",
-        )
-        self.assertEqual(
-            first=response.headers.get("HX-Retarget"),
-            second=f"#hopper-error-{self.hopper.id}",
-        )
-
-        updated_hopper = Steps.reload_hopper(hopper=self.hopper)
-        self.assertEqual(first=updated_hopper.distance, second=0.0)
+        self.assertContains(response=second_response,
+                            text="Форсаж реактора (+45м)")
+        self.assertNotContains(response=second_response,
+                               text="bg-fuchsia-600 hover:bg-fuchsia-700")
+        self.assertContains(response=second_response,
+                            text="bg-fuchsia-600 opacity-50 cursor-not-allowed")
+        self.assertEqual(first=third_response.status_code,
+                         second=HttpStatus.BAD_REQUEST)
 
     # endregion

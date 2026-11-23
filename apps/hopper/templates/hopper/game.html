@@ -44,7 +44,7 @@
 
                 <div id="hopper-block"
                      class="absolute top-0 left-0 will-change-transform"
-                     style="transform: translate(0px, 99px); transition: transform 0.4s ease-in-out;">
+                     style="transform: translate(0px, 99px);">
                     <div id="hopper-jump" class="will-change-transform">
                         <img id="hopper-sprite"
                              src="{% static 'hopper-sprite.png' %}"
@@ -73,8 +73,12 @@
     const UNDERGROUND_Y = GROUND_LINE + 35;
     const JUMP_HEIGHT = 52;
     const JUMP_DURATION = 750;
+    const MOVE_DURATION = 400;
 
     let lastState = null;
+    let movementAnimation = null;
+    let wrapping = false;
+    let pendingState = null;
 
     let jumpAnimationRunning = false;
 
@@ -134,34 +138,107 @@
         arcAnimation.addEventListener("cancel", settle);
     }
 
-    function applyState(data) {
-        const distance = Number(data.distance);
-        const location = data.location_state;
-        const windowStart = Math.floor(distance / TRACK_WINDOW_M) * TRACK_WINDOW_M;
-        const posX = (distance - windowStart) * PX_PER_M;
-        const posY = location === "underground" ? UNDERGROUND_Y : SURFACE_Y;
-        const previous = lastState;
-        lastState = { distance: distance, location: location, windowStart: windowStart };
-
-        const hopperElement = document.getElementById("hopper-block");
-        if (hopperElement) {
-            hopperElement.style.transform = `translate(${posX}px, ${posY}px)`;
-        }
+    function updateTrackMarks(windowStart) {
         document.querySelectorAll(".track-mark").forEach(function (mark) {
             mark.textContent = (windowStart + Number(mark.dataset.m)) + "м";
         });
+    }
+
+    async function wrapHopper(hopperElement, from, target, posY, windowStart) {
+        wrapping = true;
+        const exitX = Math.max(hopperElement.parentElement.clientWidth,
+                               TRACK_WINDOW_M * PX_PER_M + SPRITE_WIDTH);
+        movementAnimation = hopperElement.animate([
+            { transform: from },
+            { transform: `translate(${exitX}px, ${posY}px)` }
+        ], {
+            duration: JUMP_DURATION / 2,
+            easing: "ease-in",
+            fill: "forwards"
+        });
+        await movementAnimation.finished;
+
+        // Обе позиции находятся за границами карты: перенос между ними не виден.
+        const entry = `translate(${-SPRITE_WIDTH}px, ${posY}px)`;
+        hopperElement.style.transform = entry;
+        movementAnimation.cancel();
+        updateTrackMarks(windowStart);
+        hopperElement.style.transform = target;
+        movementAnimation = hopperElement.animate([
+            { transform: entry },
+            { transform: target }
+        ], {
+            duration: JUMP_DURATION / 2,
+            easing: "ease-out",
+            fill: "forwards"
+        });
+        await movementAnimation.finished;
+        movementAnimation.cancel();
+        movementAnimation = null;
+        wrapping = false;
+
+        if (pendingState) {
+            const nextState = pendingState;
+            pendingState = null;
+            renderMapState(nextState);
+        }
+    }
+
+    function renderMapState(state) {
+        if (wrapping) {
+            pendingState = state;
+            return;
+        }
+
+        const previous = lastState;
+        lastState = state;
+        const posX = (state.distance - state.windowStart) * PX_PER_M;
+        const posY = state.location === "underground" ? UNDERGROUND_Y : SURFACE_Y;
+        const target = `translate(${posX}px, ${posY}px)`;
+        const hopperElement = document.getElementById("hopper-block");
+        if (hopperElement) {
+            const from = getComputedStyle(hopperElement).transform;
+            if (movementAnimation) movementAnimation.cancel();
+
+            const crossedWindow = previous && state.distance > previous.distance
+                && state.windowStart > previous.windowStart;
+            if (crossedWindow && typeof hopperElement.animate === "function") {
+                wrapHopper(hopperElement, from, target, posY, state.windowStart);
+            } else {
+                hopperElement.style.transform = target;
+                updateTrackMarks(state.windowStart);
+                if (previous && typeof hopperElement.animate === "function") {
+                    movementAnimation = hopperElement.animate([
+                        { transform: from },
+                        { transform: target }
+                    ], {
+                        duration: MOVE_DURATION,
+                        easing: "ease-in-out"
+                    });
+                }
+            }
+        }
+
+        const isSurfaceJump = previous
+            && state.location === "surface"
+            && previous.location === "surface"
+            && state.distance > previous.distance;
+        if (isSurfaceJump) {
+            playJumpAnimation();
+        }
+    }
+
+    function applyState(data) {
+        const distance = Number(data.distance);
         const distEl = document.getElementById("hud-distance");
         const recEl = document.getElementById("hud-record");
         if (distEl) distEl.textContent = distance.toFixed(1);
         if (recEl) recEl.textContent = Number(data.best_distance).toFixed(1);
-
-        const isSurfaceJump = previous
-            && location === "surface"
-            && previous.location === "surface"
-            && distance > previous.distance;
-        if (isSurfaceJump) {
-            playJumpAnimation();
-        }
+        renderMapState({
+            distance: distance,
+            location: data.location_state,
+            windowStart: Math.floor(distance / TRACK_WINDOW_M) * TRACK_WINDOW_M
+        });
     }
 
     document.body.addEventListener("updateMap", function (evt) {

@@ -7,10 +7,13 @@
 - Используем штатный Django: `django.test.TestCase`, `django.test.Client`, `reverse`, тестовую БД.
 - Не используем pytest, pytest-фикстуры и Allure.
 - Главный критерий — читаемость. Тест должен читаться как сценарий на языке предметной области, а не как набор технических вызовов.
-- Один тест проверяет одно поведение или один сценарий.
+- Один тест проверяет одно поведение или один сценарий. Последовательность действий допустима, если она является сутью сценария, например проверка контракта ручки состояния после каждого шага в `BE_P_14`.
+- В интеграционных BE-АТ проверяемое действие выполняем HTTP-запросом через `Steps` и Django `Client`, чтобы запрос проходил через URL, middleware и view. Прямой вызов сервиса вместо HTTP запрещён.
+- ORM и вспомогательные методы допускаются для подготовки данных и проверки состояния БД. Отдельные `DB_*` проверяют ограничения модели при сохранении.
+- Один бизнес-сценарий имеет один интеграционный BE-тест. Дубли удаляем, а не прячем дополнительные одинаковые действия внутри одного метода. Для игровых действий используем запрос реальной кнопки (`source="game"`, `HX-Request: true`). UI-тесты могут повторять сценарии BE.
 - Тест — это документация. По docstring и шагам должно быть понятно, что проверяется и почему.
 - Инфраструктурные детали (HTTP, ORM, URL, cookies) прячем в общий `Steps`.
-- Ожидания и проверки остаются в тесте: тест должен явно показывать, что именно он проверяет.
+- Ожидаемые значения явно задаём в тесте. Повторяющиеся сравнения полей хоппера выполняем через `Steps.assert_hopper_state(...)`; по аргументам вызова должно быть видно, что именно проверяется.
 
 ## 2. Docstring для каждого теста
 
@@ -181,7 +184,7 @@ from apps.common.testing.steps import Steps
 
 - Все бизнес-действия в тестах выполняем через `Steps`.
 - В тестах не должно быть «сырых» `self.client.post`, `reverse`, `execute_hopper_action`, `Hopper.objects.create`, если для этого есть метод `Steps`.
-- `Steps` скрывает инфраструктуру, но не скрывает ожидания: проверки остаются в тесте.
+- `Steps` скрывает инфраструктуру и общие сравнения состояния; ожидаемые значения остаются явными аргументами в тесте.
 - Новые методы добавляем в `Steps` по мере необходимости, а не дублируем код в тестах.
 
 Основные методы:
@@ -202,7 +205,6 @@ Steps.logout_user(client=self.client)
 Steps.get_index(client=self.client)
 
 Steps.create_hopper(user=self.user, name="Крот-1", mass_kg=200.0)
-Steps.create_hopper_for_user(user=self.user, name="Крот-1", mass_kg=200.0)
 Steps.update_hopper(hopper=self.hopper, distance=95.0)
 Steps.reload_hopper(hopper=self.hopper)
 Steps.create_hopper_via_endpoint(client=self.client, name="Крот-1", mass_kg=200.0)
@@ -215,11 +217,9 @@ Steps.get_action(client=self.client, hopper_id=self.hopper.id)
 Steps.post_action(client=self.client,
                   hopper_id=self.hopper.id,
                   action_type="basic_jump")
-Steps.perform_action(hopper_id=self.hopper.id,
-                     user=self.user,
-                     action_type="basic_jump")
-Steps.start_race(hopper_id=self.hopper.id, user=self.user)
-Steps.get_action_availability(hopper=self.hopper)
+Steps.post_game_action(client=self.client,
+                       hopper_id=self.hopper.id,
+                       action_type="basic_jump")
 ```
 
 ## 8. Аналог allure_step и логирование
@@ -246,14 +246,14 @@ Steps.step(message="Создаём хоппера с массой 200 кг")
 10:00:00 | create_user...
 10:00:00 | create_user -> [0:00:00]
 10:00:00 | << Выполняем обычный прыжок >>
-10:00:00 | perform_action...
-10:00:00 | perform_action -> [0:00:00]
+10:00:00 | post_game_action...
+10:00:00 | post_game_action -> [0:00:00]
 ```
 
 При ошибке:
 
 ```text
-10:00:00 | perform_action -> FAILED [0:00:00] InvalidLocationError: Прыжок невозможен
+10:00:00 | post_game_action -> FAILED [0:00:00] InvalidLocationError: Прыжок невозможен
 ```
 
 Ничего лишнего в лог не пишем: только шаги, вызовы методов, длительность и успех/ошибка.
@@ -264,7 +264,10 @@ Steps.step(message="Создаём хоппера с массой 200 кг")
 - Для JSON используем `response.json()` или `assertJSONEqual`.
 - Для редиректов используем `assertRedirects`.
 - Для шаблонов — `assertTemplateUsed`.
-- Для состояния БД — `refresh_from_db()` через `Steps.reload_hopper(...)` или ORM-запросы.
+- Для сравнения состояния хоппера с ожиданиями используем `Steps.assert_hopper_state(test_case=self, hopper=..., expected_...=...)`: метод перечитывает объект из БД.
+- Ожидаемые поля необязательны: проверяются только параметры, отличные от `None`. В общем методе используем `is not None`, чтобы проверять также `0.0` и пустые строки.
+- `Steps.reload_hopper(...)` оставляем для чтения состояния, например для снимка силы перед проверкой повторного действия.
+- Ручку состояния отдельно проверяет `BE_P_14`: исходный JSON и JSON после трёх HTTP-действий сравниваются с рассчитанными вручную значениями; БД проверяется по тем же ожиданиям. Сравнение API с БД не заменяет ожидаемые результаты сценария.
 - Для проверки существования записи — `Model.objects.filter(...).exists()`.
 
 Пример:
@@ -275,8 +278,9 @@ self.assertEqual(first=response.status_code, second=200)
 self.assertContains(response=response,
                     text="Дистанция: 10,0")
 
-updated_hopper = Steps.reload_hopper(hopper=self.hopper)
-self.assertEqual(first=updated_hopper.distance, second=10.0)
+Steps.assert_hopper_state(test_case=self,
+                          hopper=self.hopper,
+                          expected_distance=10.0)
 ```
 
 ## 10. URL и HTTP-клиент
@@ -288,26 +292,28 @@ self.assertEqual(first=updated_hopper.distance, second=10.0)
 
 ## 11. Пример правильного теста
 
+Пользователь, транспорт и авторизация клиента подготовлены общей фикстурой.
+
 ```python
 def test_basic_jump_success(self):
     """BE_P_6 Проверяет обычный прыжок на поверхности."""
     # Arrange
-    Steps.step(message="Создаём хоппера для прыжка")
-    hopper = Steps.create_hopper(user=self.user,
-                                 name="Крот-1",
-                                 mass_kg=200.0)
+    Steps.step(message="Хоппер готов к обычному прыжку")
 
     # Act
-    Steps.step(message="Выполняем обычный прыжок")
-    updated_hopper = Steps.perform_action(hopper_id=hopper.id,
-                                          user=self.user,
-                                          action_type="basic_jump")
+    Steps.step(message="Выполняем обычный прыжок через HTTP")
+    response = Steps.post_game_action(client=self.client,
+                                      hopper_id=self.hopper.id,
+                                      action_type="basic_jump")
 
     # Assert
-    Steps.step(message="Проверяем дистанцию, силу и рекорд")
-    self.assertEqual(first=updated_hopper.distance, second=10.0)
-    self.assertEqual(first=updated_hopper.strength, second=95.0)
-    self.assertEqual(first=updated_hopper.best_distance, second=10.0)
+    Steps.step(message="Проверяем статус, дистанцию, силу и рекорд")
+    self.assertEqual(first=response.status_code, second=HttpStatus.OK)
+    Steps.assert_hopper_state(test_case=self,
+                              hopper=self.hopper,
+                              expected_distance=10.0,
+                              expected_strength=95.0,
+                              expected_best_distance=10.0)
 ```
 
 ## 12. Чек-лист нового АТ
@@ -320,6 +326,7 @@ def test_basic_jump_success(self):
 - [ ] Переменные названы по-доменному.
 - [ ] Позитивные и негативные сценарии не смешаны.
 - [ ] Используется `Steps`, а не сырые вызовы инфраструктуры.
+- [ ] Проверяемое BE-действие проходит через HTTP и view; дубли BE-сценариев отсутствуют.
 - [ ] На каждом логическом шаге вызван `Steps.step(...)`.
 - [ ] URL получен через `reverse`.
 - [ ] HTML проверяется через `assertContains`, JSON — через `response.json()` / `assertJSONEqual`.

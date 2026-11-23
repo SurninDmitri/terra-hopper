@@ -1,31 +1,15 @@
 from apps.common.testing.constants import HopperData, Passwords
 from apps.common.testing.steps import Steps
-from apps.common.testing.ui.test_case import ServiceUserUiTestCase
+from apps.common.testing.ui.test_case import HopperGameUiTestCase, ServiceUserUiTestCase
 
 
-class HopperGameUiTest(ServiceUserUiTestCase):
-    def setUp(self):
-        super().setUp()
-        self.hopper = Steps.create_hopper(
-            user=self.service_user,
-            name=HopperData.DEFAULT_NAME,
-            mass_kg=HopperData.DEFAULT_MASS_KG,
-        )
-
-    def _login_and_start_race(self) -> None:
-        Steps.step(message="Авторизуемся через форму входа")
-        self.login_as_service_user()
-
-        Steps.step(message="Запускаем заезд с дашборда")
-        self.ui.start_race(hopper_name=self.hopper.name)
-
+class HopperGameUiTest(HopperGameUiTestCase):
     # region === Позитивные сценарии ===
 
     def test_basic_jump_from_game_screen(self):
         """UI_P_3 Проверяет обычный прыжок через игровой интерфейс."""
         # Arrange
-        Steps.step(message="Готовим пользователя и хоппера для UI-теста")
-        self._login_and_start_race()
+        Steps.step(message="Используем подготовленного хоппера в запущенном заезде")
 
         # Act
         Steps.step(message="Выполняем обычный прыжок")
@@ -39,8 +23,7 @@ class HopperGameUiTest(ServiceUserUiTestCase):
     def test_long_jump_from_game_screen(self):
         """UI_P_4 Проверяет дальний прыжок через игровой интерфейс."""
         # Arrange
-        Steps.step(message="Авторизуемся и запускаем заезд")
-        self._login_and_start_race()
+        Steps.step(message="Используем подготовленный игровой экран")
 
         # Act
         Steps.step(message="Выполняем дальний прыжок")
@@ -54,8 +37,7 @@ class HopperGameUiTest(ServiceUserUiTestCase):
     def test_reactor_jump_from_game_screen(self):
         """UI_P_5 Проверяет форсаж реактора через игровой интерфейс."""
         # Arrange
-        Steps.step(message="Авторизуемся и запускаем заезд")
-        self._login_and_start_race()
+        Steps.step(message="Используем подготовленный игровой экран")
 
         # Act
         Steps.step(message="Выполняем прыжок с форсажем реактора")
@@ -70,8 +52,7 @@ class HopperGameUiTest(ServiceUserUiTestCase):
     def test_record_updates_after_new_maximum(self):
         """UI_P_6 Проверяет обновление рекорда после прыжков."""
         # Arrange
-        Steps.step(message="Авторизуемся и запускаем заезд")
-        self._login_and_start_race()
+        Steps.step(message="Используем подготовленный игровой экран")
 
         # Act
         Steps.step(message="Выполняем обычный и дальний прыжки")
@@ -87,8 +68,7 @@ class HopperGameUiTest(ServiceUserUiTestCase):
     def test_underground_actions_cycle(self):
         """UI_P_7 Проверяет погружение, бурение и возврат на поверхность."""
         # Arrange
-        Steps.step(message="Авторизуемся и запускаем заезд")
-        self._login_and_start_race()
+        Steps.step(message="Используем подготовленный игровой экран")
 
         # Act
         Steps.step(message="Погружаемся под землю")
@@ -113,20 +93,14 @@ class HopperLeaderboardUiTest(ServiceUserUiTestCase):
     def setUp(self):
         super().setUp()
         Steps.step(message="Создаём соперника с минимальным рекордом")
-        self.rival = Steps.create_user(
-            username="rival-driver",
-            password=Passwords.STRONG,
-        )
-        self.rival_hopper = Steps.create_hopper(
-            user=self.rival,
-            name="Крот-соперник",
-            mass_kg=HopperData.DEFAULT_MASS_KG,
-        )
-        Steps.perform_action(
-            hopper_id=self.rival_hopper.id,
-            user=self.rival,
-            action_type="basic_jump",
-        )
+        self.rival = Steps.create_user(username="rival-driver",
+                                       password=Passwords.STRONG)
+        self.rival_hopper = Steps.create_hopper(user=self.rival,
+                                                name="Крот-соперник",
+                                                mass_kg=HopperData.DEFAULT_MASS_KG,
+                                                distance=10.0,
+                                                best_distance=10.0,
+                                                strength=95.0)
 
     # region === Позитивные сценарии ===
 
@@ -141,33 +115,21 @@ class HopperLeaderboardUiTest(ServiceUserUiTestCase):
 
         # Assert
         Steps.step(message="Проверяем строку другого пользователя")
-        self.ui.assert_leaderboard_entry(
-            username=self.rival.username,
-            hopper_name=self.rival_hopper.name,
-            expected_record="10,0 м",
-        )
+        self.ui.assert_leaderboard_entry(username=self.rival.username,
+                                         hopper_name=self.rival_hopper.name,
+                                         expected_record="10,0 м")
 
     # endregion
 
 
-class HopperGameOverUiTest(ServiceUserUiTestCase):
+class HopperGameOverUiTest(HopperGameUiTestCase):
+    hopper_name = "Тяжеловес"
+    hopper_mass_kg = 500.0
+
     def setUp(self):
         super().setUp()
-        self.hopper = Steps.create_hopper(
-            user=self.service_user,
-            name="Тяжеловес",
-            mass_kg=500.0,
-        )
-
-    def _login_and_start_race(self) -> None:
-        Steps.step(message="Авторизуемся через форму входа")
-        self.login_as_service_user()
-
-        Steps.step(message="Запускаем заезд с дашборда")
-        self.ui.start_race(hopper_name=self.hopper.name)
-
-    def _perform_long_jumps(self, count: int) -> None:
-        for _ in range(count):
+        Steps.step(message="Тратим силу на четыре дальних прыжка")
+        for _ in range(4):
             self.ui.perform_long_jump()
 
     # region === Негативные сценарии ===
@@ -175,36 +137,30 @@ class HopperGameOverUiTest(ServiceUserUiTestCase):
     def test_game_over_modal_appears_when_strength_exhausted(self):
         """UI_N_1 Проверяет окно окончания сил и возврат в гараж."""
         # Arrange
-        Steps.step(message="Авторизуемся и запускаем заезд")
-        self._login_and_start_race()
+        Steps.step(message="Используем заезд после четырёх дальних прыжков")
 
         # Act
-        Steps.step(message="Тратим силу на дальние прыжки")
-        self._perform_long_jumps(count=4)
-
         Steps.step(message="Выполняем обычные прыжки до исчерпания сил")
         self.ui.perform_basic_jumps_until_disabled(max_attempts=10)
 
-        # Assert
         Steps.step(message="Проверяем окно окончания игры и блокировку кнопки")
         self.ui.assert_game_over()
         self.ui.assert_basic_jump_disabled()
 
         Steps.step(message="Возвращаемся в гараж по ссылке из окна")
         self.ui.return_to_garage_from_game_over()
+
+        # Assert
+        Steps.step(message="Проверяем возврат на дашборд")
         self.ui.assert_dashboard_url()
         self.ui.assert_on_dashboard()
 
     def test_long_jump_disabled_when_strength_low(self):
         """UI_N_2 Проверяет блокировку дальнего прыжка при нехватке силы."""
         # Arrange
-        Steps.step(message="Авторизуемся и запускаем заезд")
-        self._login_and_start_race()
+        Steps.step(message="Используем заезд после четырёх дальних прыжков")
 
         # Act
-        Steps.step(message="Тратим силу на дальние прыжки")
-        self._perform_long_jumps(count=4)
-
         Steps.step(message="Выполняем обычные прыжки до низкой силы")
         for _ in range(3):
             self.ui.perform_basic_jump()
