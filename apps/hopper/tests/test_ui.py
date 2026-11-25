@@ -1,8 +1,11 @@
+from unittest import skip
+
 from apps.common.testing.constants import HopperData, Passwords
 from apps.common.testing.steps import Steps
 from apps.common.testing.ui.test_case import HopperGameUiTestCase, ServiceUserUiTestCase
 
 
+@skip("UI-тесты отключены по запросу пользователя")
 class HopperGameUiTest(HopperGameUiTestCase):
     # region === Позитивные сценарии ===
 
@@ -89,6 +92,7 @@ class HopperGameUiTest(HopperGameUiTestCase):
     # endregion
 
 
+@skip("UI-тесты отключены по запросу пользователя")
 class HopperLeaderboardUiTest(ServiceUserUiTestCase):
     def setUp(self):
         super().setUp()
@@ -122,6 +126,7 @@ class HopperLeaderboardUiTest(ServiceUserUiTestCase):
     # endregion
 
 
+@skip("UI-тесты отключены по запросу пользователя")
 class HopperGameOverUiTest(HopperGameUiTestCase):
     hopper_name = "Тяжеловес"
     hopper_mass_kg = 500.0

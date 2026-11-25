@@ -1,8 +1,11 @@
+from unittest import skip
+
 from apps.common.testing.constants import Passwords
 from apps.common.testing.steps import Steps
 from apps.common.testing.ui.test_case import PlaywrightLiveServerTestCase, ServiceUserUiTestCase
 
 
+@skip("UI-тесты отключены по запросу пользователя")
 class RegistrationUiTest(PlaywrightLiveServerTestCase):
     # region === Позитивные сценарии ===
 
@@ -25,6 +28,7 @@ class RegistrationUiTest(PlaywrightLiveServerTestCase):
     # endregion
 
 
+@skip("UI-тесты отключены по запросу пользователя")
 class LogoutLoginUiTest(ServiceUserUiTestCase):
     def setUp(self):
         super().setUp()
